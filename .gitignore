@@ -1,0 +1,33 @@
+# Local environments and generated Python files
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+
+# Data, model weights, and inference caches
+datasets/
+models_cache/
+huggingface/
+cache/
+*.sqlite
+*.sqlite3
+
+# Generated outputs and cluster logs
+results/
+test_results/
+unit_test/output/
+slurm/logs/
+slurm/runs/
+*.out
+*.err
+*.log
+
+# Local secrets and editor/OS files
+.env
+.DS_Store
+.vscode/
