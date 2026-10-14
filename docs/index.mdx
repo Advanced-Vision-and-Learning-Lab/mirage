@@ -20,6 +20,12 @@ The runnable entry point, `demo.py`, connects the supported COCO and Visual Geno
   <Card title="Metrics and models" icon="chart-column" href="/metrics-and-models">
     Review available model wrappers and scoring protocols.
   </Card>
+  <Card title="Run on an HPC cluster" icon="server" href="/hpc">
+    Prepare a GPU job and submit it with SLURM.
+  </Card>
+  <Card title="Maintain the docs" icon="book-open" href="/maintaining-docs">
+    Preview changes and see what the automated checks cover.
+  </Card>
 </CardGroup>
 
 ## Evaluation data flow
@@ -38,7 +44,7 @@ flowchart LR
 
 ## Reference model results
 
-These results compare three model configurations across COCO and Visual Genome for four metrics. Higher is better for POPE accuracy, ROPE strict accuracy, and THRONE F1. Lower is better for CHAIR instance-level hallucination rate, labeled CHAIR-I (CHI).
+These reference results compare three model configurations across COCO and Visual Genome for four metrics. Higher is better for POPE accuracy, ROPE strict accuracy, and THRONE F1. Lower is better for CHAIR instance-level hallucination rate, labeled CHAIR-I (CHI). DeepSeek is supported by the run interface, but it has no score in this reference set yet.
 
 ![Four-panel comparison of POPE accuracy, ROPE strict accuracy, CHAIR-I hallucination rate, and THRONE F1 for PaliGemma-3B, Qwen2-VL-2B, and Qwen2-VL-7B on COCO and Visual Genome.](/images/model-results.png)
 

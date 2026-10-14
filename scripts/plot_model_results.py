@@ -10,7 +10,6 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[1]
 DATA_PATH = ROOT / "docs" / "model-results.csv"
 OUTPUT_PATH = ROOT / "docs" / "images" / "model-results.png"
-MODELS = ["PaliGemma-3B", "Qwen2-VL-2B", "Qwen2-VL-7B"]
 DATASETS = ["COCO", "Visual Genome"]
 METRICS = [
     ("pope_accuracy", "POPE accuracy", "higher is better"),
@@ -29,7 +28,10 @@ def main() -> None:
     with DATA_PATH.open(newline="", encoding="utf-8") as source:
         rows = list(csv.DictReader(source))
 
-    image = Image.new("RGB", (1440, 1040), "white")
+    models = list(dict.fromkeys(row["model"] for row in rows))
+    panel_width = max(620, 165 * len(models))
+    image_width = panel_width * 2 + 200
+    image = Image.new("RGB", (image_width, 1040), "white")
     draw = ImageDraw.Draw(image)
     title_font = ImageFont.load_default(size=32)
     heading_font = ImageFont.load_default(size=22)
@@ -37,10 +39,9 @@ def main() -> None:
     small_font = ImageFont.load_default(size=15)
     draw.text((72, 36), "Reference model results", fill="#172B4D", font=title_font)
 
-    panel_width, panel_height = 620, 405
-    lefts, tops = (72, 748), (108, 548)
+    lefts, tops = (72, panel_width + 100), (108, 548)
     plot_top_offset, plot_height = 68, 245
-    plot_left_offset, plot_width = 60, 535
+    plot_left_offset, plot_width = 60, panel_width - 85
     for panel, (metric, label, direction) in enumerate(METRICS):
         x = lefts[panel % 2]
         y = tops[panel // 2]
@@ -54,9 +55,9 @@ def main() -> None:
             draw.line((plot_left, tick_y, plot_left + plot_width, tick_y), fill="#E5E9F0", width=1)
             draw.text((x + 12, tick_y - 8), f"{tick / 10:.1f}", fill="#596579", font=small_font)
 
-        group_width = plot_width / len(MODELS)
-        bar_width = 34
-        for model_index, model in enumerate(MODELS):
+        group_width = plot_width / len(models)
+        bar_width = min(34, group_width * 0.22)
+        for model_index, model in enumerate(models):
             center = plot_left + group_width * (model_index + 0.5)
             for dataset_index, dataset in enumerate(DATASETS):
                 score = float(
@@ -88,8 +89,9 @@ def main() -> None:
             )
 
     legend_y = 974
+    legend_start = image_width // 2 - 185
     for index, dataset in enumerate(DATASETS):
-        legend_x = 420 + index * 210
+        legend_x = legend_start + index * 210
         draw.rectangle((legend_x, legend_y, legend_x + 18, legend_y + 18), fill=COLORS[dataset])
         draw.text((legend_x + 27, legend_y - 1), dataset, fill="#344054", font=body_font)
     draw.text(

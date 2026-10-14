@@ -1,0 +1,51 @@
+---
+title: "Maintain the docs"
+description: "How Mirage documentation is organized, checked, previewed, and published."
+---
+
+Mirage documentation lives beside the code in `docs/`. The `docs/docs.json` file controls navigation, and Mintlify serves each MDX page from the connected repository's content directory.
+
+## What updates automatically
+
+After Mintlify is connected to the lab repository with `docs/` as its content directory, pushes to the configured deployment branch (`main`) trigger a Mintlify build and deployment. External pushes also sync into the Mintlify editor. A local docs edit does not go live until it is committed and pushed.
+
+The GitHub Actions workflow checks internal Mintlify links and runs a small contract test that verifies the model keys accepted by `demo.py` are named in the model and HPC guides. It also regenerates the homepage results graph and fails if its checked-in image is stale.
+
+## What to update with code changes
+
+When changing an evaluation interface, update its matching page in the same change:
+
+| Code change | Documentation to review |
+| --- | --- |
+| Add or rename a model key | `metrics-and-models.mdx`, `hpc.mdx`, and model comparison commands |
+| Change CLI arguments or defaults | `running-evaluations.mdx`, `hpc.mdx`, and `demo.py --help` examples |
+| Change dataset paths or annotation fields | `datasets.mdx` and dataset loading code |
+| Change metric requirements or result fields | `metrics-and-models.mdx` and the relevant metric implementation |
+| Change a reported score | `model-results.csv`, then regenerate the chart |
+| Change cluster launch behavior | `hpc.mdx` and `slurm/demo.slurm` |
+
+The automated checks catch broken internal links, an undocumented model key, and a stale chart. They cannot decide whether a new metric description, resource estimate, or scientific interpretation is accurate, so review those details with the code change. To chart a new model, add one CSV row per dataset with measured values, then regenerate the chart. HPC result JSON stays on the cluster unless you deliberately bring selected results into this file and commit them.
+
+## Preview and check a docs change
+
+Install the Mintlify CLI with Node.js available, then run the local preview from the docs directory:
+
+```bash
+cd docs
+npx mint dev
+```
+
+In another terminal from the docs directory, check internal links:
+
+```bash
+npx mint broken-links
+```
+
+From the repository root, run the model documentation check and refresh the graph when its source CSV changes:
+
+```bash
+python -m pytest -q tests/test_demo_model_choices.py
+python scripts/plot_model_results.py
+```
+
+Commit the documentation with the code change and push to `main`. Once GitHub access and the content directory are configured, Mintlify handles the deployment from that push.

@@ -20,10 +20,13 @@ Metric availability can depend on the dataset path and local files. For example,
 
 ## Models
 
-The prediction factory supports two local vision-language model wrappers:
+The prediction factory supports three local vision-language model wrappers:
 
+- `deepseek` uses the Transformers-compatible `deepseek-community/deepseek-vl-1.3b-chat` checkpoint by default. Override it with `MIRAGE_DEEPSEEK_MODEL_PATH`.
 - `paligemma` uses `google/paligemma-3b-mix-224` by default. Override the model identifier or local path with `MIRAGE_PALIGEMMA_MODEL_PATH`.
 - `qwen2vl` uses `Qwen/Qwen2-VL-2B-Instruct` by default. Override it with `MIRAGE_QWEN_MODEL_PATH`.
+
+These are the model keys currently supported by `demo.py`. A different checkpoint can be used through the model-path override only when it is compatible with that wrapper. A new model family needs its own wrapper and registry entry before it can be selected as a separate model key.
 
 Set `MIRAGE_VL_MODEL` to choose the default model when `--model` is omitted. Models are loaded for inference at runtime; model weights are not included in the repository.
 

@@ -15,8 +15,10 @@
           "index",
           "getting-started",
           "datasets",
+          "hpc",
           "running-evaluations",
-          "metrics-and-models"
+          "metrics-and-models",
+          "maintaining-docs"
         ]
       }
     ]
