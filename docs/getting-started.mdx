@@ -6,7 +6,7 @@ description: "Set up Mirage and verify the demo path without downloading a model
 ## Requirements
 
 - Python and pip
-- The packages listed in the repository's `requirements.txt`
+- The runtime packages in `requirements.txt`; install `requirements-dev.txt` to run tests
 - For real evaluations, local dataset files and access to the selected model weights
 
 The model wrappers choose CUDA when it is available and otherwise fall back to CPU. Real model inference can require substantial memory and can be slow on CPU.
@@ -19,7 +19,7 @@ From the repository root, create and activate a virtual environment, then instal
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 ## Verify the demo path

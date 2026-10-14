@@ -1,0 +1,2 @@
+# Test tools. Install alongside requirements.txt for local development.
+pytest==9.0.2

@@ -9,7 +9,7 @@ Mirage documentation lives beside the code in `docs/`. The `docs/docs.json` file
 
 After Mintlify is connected to the lab repository with `docs/` as its content directory, pushes to the configured deployment branch (`main`) trigger a Mintlify build and deployment. External pushes also sync into the Mintlify editor. A local docs edit does not go live until it is committed and pushed.
 
-The first GitHub Actions check fails when a code or dependency change does not include a change under `docs/`. The next checks verify that the homepage and README result tables match the CSV, then validate Mintlify links.
+`requirements.txt` lists pinned direct runtime dependencies; pip resolves their transitive packages. `requirements-dev.txt` contains test-only tools. The first GitHub Actions check fails when a code or dependency change does not include a change under `docs/`. The next checks verify that the homepage and README result tables match the CSV, then validate Mintlify links.
 
 ## What to update with code changes
 
