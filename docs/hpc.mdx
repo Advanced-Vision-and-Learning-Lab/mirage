@@ -13,7 +13,7 @@ This guide covers a first GPU run and repeatable model comparisons on a SLURM cl
 - The model weights already available in the Hugging Face cache or on cluster storage. Nodes without internet access cannot download weights during the job.
 - A GPU allocation sized for the selected checkpoint and evaluation. The sample SLURM request is a starting point, not a guarantee that a model fits.
 
-The repository currently exposes `deepseek`, `paligemma`, and `qwen2vl` to `demo.py`. See [Metrics and models](/metrics-and-models) for checkpoint defaults and overrides. Use only a model key shown there unless you have added a model wrapper and registered it in Mirage.
+The repository currently exposes `paligemma` and `qwen2vl` to `demo.py`. See [Metrics and models](/metrics-and-models) for checkpoint defaults and overrides. DeepSeek-VL is not currently implemented as a Mirage model backend, so it cannot be selected with `--model` or `MIRAGE_VL_MODEL`.
 
 ## Clone and prepare the environment
 
@@ -55,8 +55,6 @@ export MIRAGE_HF_HOME=/path/to/shared/huggingface
 export MIRAGE_QWEN_MODEL_PATH=/path/to/models/Qwen2-VL-2B-Instruct
 ```
 
-For DeepSeek-VL, set `MIRAGE_DEEPSEEK_MODEL_PATH` to a local model snapshot if the compute nodes cannot download from Hugging Face. Mirage defaults this model key to `deepseek-community/deepseek-vl-1.3b-chat`.
-
 For PaliGemma, use `MIRAGE_PALIGEMMA_MODEL_PATH`. The default is a Hugging Face model identifier, which requires the model files to be cached or reachable. Some gated model repositories also require access approval and Hugging Face authentication before downloading.
 
 ## Submit a small Qwen2-VL run
@@ -79,21 +77,21 @@ The job writes standard output and errors to `mirage_<job-id>.out` and `mirage_<
 
 ## Compare model configurations
 
-Run separate jobs for each model and metric combination, changing `MIRAGE_VL_MODEL`, the model path variable, and the output path each time. For example, to compare Qwen2-VL and DeepSeek-VL on the same data and metric:
+Run separate jobs for each supported model and metric combination, changing `MIRAGE_VL_MODEL`, the model path variable, and the output path each time. For example, to compare PaliGemma and Qwen2-VL on the same data and metric:
 
 ```bash
 export MIRAGE_DATASET=coco
 export MIRAGE_METRIC=chair
 export MIRAGE_SAMPLES=100
 
+export MIRAGE_VL_MODEL=paligemma
+export MIRAGE_OUTPUT=results/paligemma-coco-chair.json
+export MIRAGE_CACHE_DIR=/path/to/scratch/mirage-cache/paligemma-coco-chair
+sbatch slurm/demo.slurm
+
 export MIRAGE_VL_MODEL=qwen2vl
 export MIRAGE_OUTPUT=results/qwen-coco-chair.json
 export MIRAGE_CACHE_DIR=/path/to/scratch/mirage-cache/qwen-coco-chair
-sbatch slurm/demo.slurm
-
-export MIRAGE_VL_MODEL=deepseek
-export MIRAGE_OUTPUT=results/deepseek-coco-chair.json
-export MIRAGE_CACHE_DIR=/path/to/scratch/mirage-cache/deepseek-coco-chair
 sbatch slurm/demo.slurm
 ```
 

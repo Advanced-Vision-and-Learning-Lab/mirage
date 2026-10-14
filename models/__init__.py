@@ -7,8 +7,7 @@ hallucination testing and evaluation.
 """
 
 from .base import BaseModel
-from .deepseek_vl import DeepseekVLModel
 from .paligemma import PaligemmaModel
 from .qwen2vl import Qwen2VLModel
 
-__all__ = ['BaseModel', 'DeepseekVLModel', 'PaligemmaModel', 'Qwen2VLModel']
+__all__ = ['BaseModel', 'PaligemmaModel', 'Qwen2VLModel']

@@ -13,8 +13,6 @@ from predict.cache import SQLiteResponseCache
 from predict.predictor import Predictor
 
 _REGISTRY = {
-    "deepseek": ("models.deepseek_vl", "DeepseekVLModel",
-                 "MIRAGE_DEEPSEEK_MODEL_PATH", "deepseek-community/deepseek-vl-1.3b-chat"),
     "paligemma": ("models.paligemma", "PaligemmaModel",
                   "MIRAGE_PALIGEMMA_MODEL_PATH", "google/paligemma-3b-mix-224"),
     "qwen2vl": ("models.qwen2vl", "Qwen2VLModel",
@@ -33,7 +31,7 @@ def build_model(model_key: Optional[str] = None, **overrides) -> Any:
     """Construct the model selected by ``model_key`` or ``$MIRAGE_VL_MODEL``.
 
     Args:
-        model_key: Registry key (``"deepseek"``, ``"paligemma"``, or ``"qwen2vl"``); None
+        model_key: Registry key (``"paligemma"`` or ``"qwen2vl"``); None
             reads ``MIRAGE_VL_MODEL`` (default ``"paligemma"``).
         **overrides: Constructor kwargs; ``model_name`` defaults to the
             model's ``MIRAGE_*_MODEL_PATH`` environment variable.

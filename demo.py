@@ -35,7 +35,7 @@ def _parse_args() -> argparse.Namespace:
         choices=("pope", "chair", "rope", "throne", "faithscore", "nope"),
         default="chair",
     )
-    parser.add_argument("--model", choices=("deepseek", "paligemma", "qwen2vl"), default=None)
+    parser.add_argument("--model", choices=("paligemma", "qwen2vl"), default=None)
     parser.add_argument("--samples", type=int, default=5, help="Number of evaluated images")
     parser.add_argument("--pool-size", type=int, default=None, help="Images to load before filtering")
     parser.add_argument("--annotations", type=Path, default=None)

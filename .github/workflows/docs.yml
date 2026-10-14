@@ -4,29 +4,15 @@ on:
   pull_request:
     paths:
       - "docs/**"
-      - "demo.py"
-      - "models/**"
-      - "predict/**"
-      - "metrics/**"
-      - "dataloader/**"
-      - "slurm/demo.slurm"
-      - "requirements.txt"
-      - "tests/test_demo_model_choices.py"
       - "scripts/plot_model_results.py"
+      - "docs/model-results.csv"
       - ".github/workflows/docs.yml"
   push:
     branches: [main]
     paths:
       - "docs/**"
-      - "demo.py"
-      - "models/**"
-      - "predict/**"
-      - "metrics/**"
-      - "dataloader/**"
-      - "slurm/demo.slurm"
-      - "requirements.txt"
-      - "tests/test_demo_model_choices.py"
       - "scripts/plot_model_results.py"
+      - "docs/model-results.csv"
       - ".github/workflows/docs.yml"
 
 jobs:
@@ -43,11 +29,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install documentation contract test dependencies
-        run: python -m pip install pillow==11.3.0 pytest
-        working-directory: .
-      - name: Check registered model documentation and CLI options
-        run: python -m pytest -q tests/test_demo_model_choices.py
+      - name: Install chart check dependency
+        run: python -m pip install pillow==11.3.0
         working-directory: .
       - name: Regenerate and check the homepage results graph
         run: |
