@@ -49,8 +49,25 @@ Mirage turns dataset examples into model responses, scores those responses, and 
 
 ## Reference model results
 
-These reference results compare three model configurations across COCO and Visual Genome for four metrics. Higher is better for POPE accuracy, ROPE strict accuracy, and THRONE F1. Lower is better for CHAIR instance-level hallucination rate, labeled CHAIR-I (CHI). The chart includes measured configurations only. A newly integrated model needs evaluation results before it can appear here.
+These reference results compare three model configurations across COCO and Visual Genome. Values are percentages from 1,000 images per model and dataset. Higher is better for POPE accuracy, ROPE strict accuracy, and THRONE F1. Lower is better for CHAIR-I hallucination rate. The tables use Mintlify's native tabs and tables so the values remain readable on every screen size.
 
-![Four-panel comparison of POPE accuracy, ROPE strict accuracy, CHAIR-I hallucination rate, and THRONE F1 for PaliGemma-3B, Qwen2-VL-2B, and Qwen2-VL-7B on COCO and Visual Genome.](/images/model-results.png)
+<Tabs>
+<Tab title="COCO">
 
-Each model and dataset result uses 1,000 images. ROPE strict accuracy requires an exact label match. THRONE F1 is normalized to 38 distractor categories per ground-truth object. The metrics measure different behaviors and should be compared within each panel, not combined into a single model ranking. The plotted values are available in the [model results data](https://github.com/Advanced-Vision-and-Learning-Lab/mirage/blob/main/docs/model-results.csv), and the chart can be regenerated with `python scripts/plot_model_results.py`.
+| Model | POPE accuracy ↑ | ROPE strict accuracy ↑ | CHAIR-I hallucination rate ↓ | THRONE F1 ↑ |
+| --- | ---: | ---: | ---: | ---: |
+| PaliGemma-3B | 94.2% | 21.6% | 9.1% | 72.9% |
+| Qwen2-VL-2B | 93.6% | 3.6% | 12.8% | 73.4% |
+| Qwen2-VL-7B | 93.5% | 13.1% | 12.7% | 72.9% |
+</Tab>
+<Tab title="Visual Genome">
+
+| Model | POPE accuracy ↑ | ROPE strict accuracy ↑ | CHAIR-I hallucination rate ↓ | THRONE F1 ↑ |
+| --- | ---: | ---: | ---: | ---: |
+| PaliGemma-3B | 88.0% | 8.2% | 67.8% | 21.5% |
+| Qwen2-VL-2B | 88.7% | 8.6% | 75.6% | 24.0% |
+| Qwen2-VL-7B | 89.5% | 10.3% | 69.3% | 23.6% |
+</Tab>
+</Tabs>
+
+ROPE strict accuracy requires an exact label match. THRONE F1 is normalized to 38 distractor categories per ground-truth object. Metrics measure different behaviors and should be compared within each metric, not combined into a single model ranking. The source values are in the [model results CSV](https://github.com/Advanced-Vision-and-Learning-Lab/mirage/blob/main/docs/model-results.csv). A new model belongs in these tables only after its results have been measured and reviewed.

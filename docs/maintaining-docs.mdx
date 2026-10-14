@@ -9,7 +9,7 @@ Mirage documentation lives beside the code in `docs/`. The `docs/docs.json` file
 
 After Mintlify is connected to the lab repository with `docs/` as its content directory, pushes to the configured deployment branch (`main`) trigger a Mintlify build and deployment. External pushes also sync into the Mintlify editor. A local docs edit does not go live until it is committed and pushed.
 
-The first GitHub Actions check fails when a code or dependency change does not include a change under `docs/`. Later checks validate Mintlify links and verify that the homepage chart matches its CSV source. The chart stores a hash of the CSV, and CI fails when scores change without regenerating the image.
+The first GitHub Actions check fails when a code or dependency change does not include a change under `docs/`. The next checks verify that the homepage and README result tables match the CSV, then validate Mintlify links.
 
 ## What to update with code changes
 
@@ -21,16 +21,16 @@ When changing an evaluation interface, update its matching page in the same chan
 | Change CLI arguments or defaults | `running-evaluations.mdx`, `hpc.mdx`, and `demo.py --help` examples |
 | Change dataset paths or annotation fields | `datasets.mdx` and dataset loading code |
 | Change metric requirements or result fields | `metrics-and-models.mdx` and the relevant metric implementation |
-| Change a reported score | `model-results.csv`, then regenerate the chart |
+| Change a reported score | Update `model-results.csv`; CI checks the results tables in `index.mdx` and the README against it |
 | Change cluster launch behavior | `hpc.mdx` and `slurm/demo.slurm` |
 
 ## Agent handoff: add DeepSeek-VL support
 
 DeepSeek-VL is a requested future backend, not a currently runnable Mirage model. An agent implementing it should first identify the exact checkpoint and confirm its supported Transformers API and licensing requirements. Then add a wrapper following the existing model interface, register it in `predict/factory.py` with a documented model-path environment override, expose the model key in `demo.py`, and update the model and HPC pages in the same change. Preserve the existing prediction cache path and make the wrapper's image and text inputs follow the contract in `models/base.py`.
 
-Before describing the backend as supported, the agent should run the existing tests, verify `demo.py --help` lists the model, and perform a one-image inference smoke test using a local checkpoint. Record the tested checkpoint and required package versions. Do not add a DeepSeek row to the results chart until the stated datasets and metrics have actually been evaluated and the result values have been reviewed.
+Before describing the backend as supported, the agent should run the existing tests, verify `demo.py --help` lists the model, and perform a one-image inference smoke test using a local checkpoint. Record the tested checkpoint and required package versions. Do not add a DeepSeek row to the reference results until the stated datasets and metrics have actually been evaluated and the result values have been reviewed.
 
-The automated checks catch broken internal links, an undocumented model key, and a stale chart. They cannot decide whether a new metric description, resource estimate, or scientific interpretation is accurate, so review those details with the code change. To chart a new model, add one CSV row per dataset with measured values, then regenerate the chart. HPC result JSON stays on the cluster unless you deliberately bring selected results into this file and commit them.
+The automated checks catch missing documentation for code changes and broken internal links. They cannot decide whether a new metric description, resource estimate, result, or scientific interpretation is accurate, so review those details with the code change. To add a model to the reference results, add one measured CSV row per dataset and update both results tables. HPC result JSON stays on the cluster unless you deliberately bring selected results into this file and commit them.
 
 ## Preview and check a docs change
 
@@ -45,12 +45,6 @@ In another terminal from the docs directory, check internal links:
 
 ```bash
 npx mint broken-links
-```
-
-From the repository root, refresh the graph when its source CSV changes:
-
-```bash
-python scripts/plot_model_results.py
 ```
 
 Commit the documentation with the code change and push to `main`. Once GitHub access and the content directory are configured, Mintlify handles the deployment from that push.
