@@ -1,0 +1,7 @@
+model,dataset,pope_accuracy,rope_strict_accuracy,chair_instance_hallucination_rate,throne_f1
+PaliGemma-3B,COCO,0.942,0.216,0.091,0.729
+PaliGemma-3B,Visual Genome,0.880,0.082,0.678,0.215
+Qwen2-VL-2B,COCO,0.936,0.036,0.128,0.734
+Qwen2-VL-2B,Visual Genome,0.887,0.086,0.756,0.240
+Qwen2-VL-7B,COCO,0.935,0.131,0.127,0.729
+Qwen2-VL-7B,Visual Genome,0.895,0.103,0.693,0.236
