@@ -4,6 +4,16 @@ on:
   pull_request:
     paths:
       - "docs/**"
+      - "demo.py"
+      - "dataloader/**"
+      - "metrics/**"
+      - "models/**"
+      - "predict/**"
+      - "scripts/**"
+      - "slurm/**"
+      - "tests/**"
+      - "requirements*.txt"
+      - "pyproject.toml"
       - "scripts/plot_model_results.py"
       - "docs/model-results.csv"
       - ".github/workflows/docs.yml"
@@ -11,6 +21,16 @@ on:
     branches: [main]
     paths:
       - "docs/**"
+      - "demo.py"
+      - "dataloader/**"
+      - "metrics/**"
+      - "models/**"
+      - "predict/**"
+      - "scripts/**"
+      - "slurm/**"
+      - "tests/**"
+      - "requirements*.txt"
+      - "pyproject.toml"
       - "scripts/plot_model_results.py"
       - "docs/model-results.csv"
       - ".github/workflows/docs.yml"
@@ -23,6 +43,13 @@ jobs:
         working-directory: docs
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: First test: code changes include documentation
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: python3 scripts/check_docs_coverage.py "$BASE_SHA" "$HEAD_SHA"
       - uses: actions/setup-node@v4
         with:
           node-version: 20

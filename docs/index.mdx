@@ -30,17 +30,22 @@ The runnable entry point, `demo.py`, connects the supported COCO and Visual Geno
 
 ## Evaluation data flow
 
-Mirage keeps dataset handling, inference, and scoring as separate steps. The cache sits between inference and scoring so cached predictions can be rescored with a metric without generating the model output again.
+Mirage turns dataset examples into model responses, scores those responses, and writes a result file. The prediction cache avoids repeating model inference when the same inputs are evaluated again.
 
-```mermaid
-flowchart LR
-    A[COCO or Visual Genome] --> B[Dataset loader]
-    B --> C[Model wrapper]
-    C --> D[Prediction cache]
-    D --> E[Metric scorer]
-    E --> F[Result JSON]
-    D -. cached predictions .-> E
-```
+<Steps>
+  <Step title="Load COCO or Visual Genome examples">
+    The dataset loader reads the image files and annotations, then provides each image with its ground-truth objects and any metric-specific data.
+  </Step>
+  <Step title="Get a model response">
+    The predictor checks the response cache using the model and request inputs. On a cache hit, Mirage reuses the saved response. On a miss, the selected model wrapper runs inference and the predictor saves its response in the cache.
+  </Step>
+  <Step title="Score responses with a metric">
+    The selected metric compares model responses with the ground truth and applies its own evaluation protocol. You can run a different metric against cached responses without running the model again.
+  </Step>
+  <Step title="Write the evaluation result">
+    The demo writes the scores and run details to the requested JSON output path.
+  </Step>
+</Steps>
 
 ## Reference model results
 
