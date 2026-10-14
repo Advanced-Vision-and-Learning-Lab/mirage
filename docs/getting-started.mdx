@@ -1,0 +1,41 @@
+---
+title: "Getting started"
+description: "Set up Mirage and verify the demo path without downloading a model."
+---
+
+## Requirements
+
+- Python and pip
+- The packages listed in the repository's `requirements.txt`
+- For real evaluations, local dataset files and access to the selected model weights
+
+The model wrappers choose CUDA when it is available and otherwise fall back to CPU. Real model inference can require substantial memory and can be slow on CPU.
+
+## Install the environment
+
+From the repository root, create and activate a virtual environment, then install the pinned dependencies:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+## Verify the demo path
+
+Run the focused smoke test:
+
+```bash
+pytest -q tests/test_demo_smoke.py
+```
+
+This test creates one temporary COCO-format image and annotation, then exercises the demo's data-loading, prediction, metric, and JSON-output flow with a stub model. It does not download model weights or dataset files.
+
+## Inspect command options
+
+```bash
+python demo.py --help
+```
+
+Before running a real evaluation, prepare the dataset files described in [Datasets](/datasets) and choose a supported [metric and model](/metrics-and-models).

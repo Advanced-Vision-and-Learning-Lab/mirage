@@ -1,0 +1,54 @@
+---
+title: "Running evaluations"
+description: "Use demo.py to select a dataset, metric, model, and output file."
+---
+
+## Basic command
+
+Run commands from the repository root:
+
+```bash
+python demo.py \
+  --dataset coco \
+  --metric chair \
+  --model paligemma \
+  --samples 5 \
+  --output results/chair-coco.json
+```
+
+`--dataset` accepts `coco` or `visual_genome`. `--model` accepts `paligemma` or `qwen2vl`; if omitted, Mirage reads `MIRAGE_VL_MODEL` and otherwise defaults to `paligemma`. `--samples` sets the number of evaluated images for the selected path.
+
+## Useful options
+
+| Option | Purpose |
+| --- | --- |
+| `--dataset` | Select `coco` or `visual_genome`. |
+| `--metric` | Select `pope`, `chair`, `rope`, `throne`, `faithscore`, or `nope`. |
+| `--model` | Select `paligemma` or `qwen2vl`. |
+| `--samples` | Set the requested evaluation sample count. |
+| `--pool-size` | Set how many dataset entries are loaded before evaluation. |
+| `--annotations`, `--images` | Override default annotation and image paths. |
+| `--split` | Set the COCO split; defaults to `val2017`. |
+| `--max-new-tokens` | Set caption generation length for applicable metrics. |
+| `--pope-questions` | Set POPE questions per image; defaults to 6. |
+| `--output` | Write the formatted result as JSON. |
+| `--nope-turn2`, `--nope-turn1` | Provide the pre-generated NOPE response JSON inputs. |
+| `--llama-model` | Set the local LLaMA model path required by FaithScore. |
+
+The complete option list is available through `python demo.py --help`.
+
+## Special case: NOPE
+
+NOPE consumes a Turn 2 response JSON file and runs model inference on the corresponding images. Provide it with `--nope-turn2`; `--nope-turn1` is optional:
+
+```bash
+python demo.py \
+  --dataset coco \
+  --metric nope \
+  --model paligemma \
+  --nope-turn2 /data/nope/turn2.json \
+  --samples 10 \
+  --output results/nope.json
+```
+
+The example SLURM job is `slurm/demo.slurm`. Submit it from the repository root with `sbatch slurm/demo.slurm`, after adapting module setup and resource requests for the target cluster. It supports dataset, metric, model, sample count, and output overrides through `MIRAGE_*` environment variables.

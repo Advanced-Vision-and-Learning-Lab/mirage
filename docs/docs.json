@@ -1,0 +1,24 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Mirage",
+  "colors": {
+    "primary": "#355C9A",
+    "light": "#6F91C8",
+    "dark": "#25416D"
+  },
+  "navigation": {
+    "pages": [
+      {
+        "group": "Mirage",
+        "pages": [
+          "index",
+          "getting-started",
+          "datasets",
+          "running-evaluations",
+          "metrics-and-models"
+        ]
+      }
+    ]
+  }
+}

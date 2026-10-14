@@ -1,0 +1,23 @@
+---
+title: "Mirage"
+description: "Run vision-language model hallucination evaluations on COCO and Visual Genome."
+---
+
+Mirage is a research codebase for running visual object hallucination evaluations with vision-language models. The repository includes dataset loaders for COCO and Visual Genome, model adapters for PaliGemma and Qwen2-VL, and implementations of several evaluation metrics.
+
+The `demo.py` command provides a single entry point for running an evaluation and optionally writing its results to JSON. These guides focus on the runnable workflow, expected local data layout, and metric and model implementations in the repository.
+
+<CardGroup cols={2}>
+  <Card title="Get started" icon="rocket" href="/getting-started">
+    Set up the Python environment and run the offline smoke test.
+  </Card>
+  <Card title="Prepare datasets" icon="database" href="/datasets">
+    Arrange COCO or Visual Genome annotations and image files.
+  </Card>
+  <Card title="Run evaluations" icon="terminal" href="/running-evaluations">
+    Learn the `demo.py` command options and common invocations.
+  </Card>
+  <Card title="Metrics and models" icon="chart-simple" href="/metrics-and-models">
+    See which metrics, datasets, and vision-language models are wired into the demo.
+  </Card>
+</CardGroup>

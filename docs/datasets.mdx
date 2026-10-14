@@ -1,0 +1,48 @@
+---
+title: "Datasets"
+description: "Prepare the local COCO and Visual Genome files used by Mirage."
+---
+
+Mirage reads dataset files already available on disk. The demo does not download full datasets automatically. By default, paths are resolved relative to the repository root; use `--annotations` and `--images` to point to another location.
+
+## COCO
+
+The default validation layout is:
+
+```text
+datasets/coco/
+├── annotations/
+│   └── instances_val2017.json
+└── val2017/
+    ├── 000000000001.jpg
+    └── ...
+```
+
+The annotation file must use COCO instance format with `images`, `annotations`, and `categories` entries. Choose another split with `--split`; the default is `val2017`.
+
+## Visual Genome
+
+The default layout is:
+
+```text
+datasets/visual_genome/
+├── objects.json
+└── VG_100K/
+    ├── <image files>
+    └── ...
+```
+
+## Override paths
+
+Use explicit paths when files are stored outside the default directories:
+
+```bash
+python demo.py \
+  --dataset coco \
+  --metric chair \
+  --annotations /data/coco/annotations/instances_val2017.json \
+  --images /data/coco/val2017 \
+  --samples 10
+```
+
+Keep large datasets, model weights, and generated results outside version control. See the repository's `.gitignore` for the ignored local data and cache paths.
