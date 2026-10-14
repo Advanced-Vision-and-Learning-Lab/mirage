@@ -2,9 +2,11 @@
 """Generate the homepage model-results chart from docs/model-results.csv."""
 
 import csv
+import hashlib
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
+from PIL.PngImagePlugin import PngInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -102,7 +104,11 @@ def main() -> None:
     )
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    image.save(OUTPUT_PATH, format="PNG", optimize=True)
+    metadata = PngInfo()
+    metadata.add_text(
+        "source-csv-sha256", hashlib.sha256(DATA_PATH.read_bytes()).hexdigest()
+    )
+    image.save(OUTPUT_PATH, format="PNG", optimize=True, pnginfo=metadata)
     print(f"Wrote {OUTPUT_PATH.relative_to(ROOT)}")
 
 

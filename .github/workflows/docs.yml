@@ -44,15 +44,25 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install documentation contract test dependencies
-        run: python -m pip install pillow==10.1.0 pytest
+        run: python -m pip install pillow==11.3.0 pytest
         working-directory: .
       - name: Check registered model documentation and CLI options
         run: python -m pytest -q tests/test_demo_model_choices.py
         working-directory: .
       - name: Regenerate and check the homepage results graph
         run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          from PIL import Image
+
+          csv_hash = hashlib.sha256(Path("docs/model-results.csv").read_bytes()).hexdigest()
+          with Image.open("docs/images/model-results.png") as chart:
+              chart_hash = chart.info.get("source-csv-sha256")
+          if chart_hash != csv_hash:
+              raise SystemExit("Homepage chart is stale. Run python scripts/plot_model_results.py and commit the updated image.")
+          PY
           python scripts/plot_model_results.py
-          git diff --exit-code -- docs/images/model-results.png
         working-directory: .
       - name: Install Mintlify CLI
         run: npm install --global mint
