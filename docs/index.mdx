@@ -3,9 +3,11 @@ title: "Mirage"
 description: "Run vision-language model hallucination evaluations on COCO and Visual Genome."
 ---
 
-Mirage is a research codebase for running visual object hallucination evaluations with vision-language models. The repository includes dataset loaders for COCO and Visual Genome, model adapters for PaliGemma and Qwen2-VL, and implementations of several evaluation metrics.
+Vision-language models can describe objects that are not present in an image as fluently as those that are. Comparing hallucination metrics is difficult because important protocol choices—such as prompt wording, decoding settings, answer parsing, ground-truth annotations, and judge models—are often implicit in separate evaluation scripts.
 
-The `demo.py` command provides a single entry point for running an evaluation and optionally writing its results to JSON. These guides focus on the runnable workflow, expected local data layout, and metric and model implementations in the repository.
+**Mirage** is a modular framework for implementing and comparing these evaluation protocols. It separates model inference, dataset handling, and metric scoring behind shared interfaces. Its persistent prediction cache also lets researchers rescore generated responses without repeating model inference. Mirage makes protocol choices easier to inspect and experiment with; it does not erase the methodological differences between metrics.
+
+The `demo.py` command is the runnable entry point in this repository. It supports COCO and Visual Genome data, PaliGemma and Qwen2-VL model wrappers, and the POPE, ROPE, CHAIR, THRONE, NOPE, and FaithScore metric implementations.
 
 <CardGroup cols={2}>
   <Card title="Get started" icon="rocket" href="/getting-started">
@@ -21,3 +23,13 @@ The `demo.py` command provides a single entry point for running an evaluation an
     See which metrics, datasets, and vision-language models are wired into the demo.
   </Card>
 </CardGroup>
+
+## Thesis evaluation scope
+
+The thesis evaluated three instruction-tuned models—PaliGemma-3B-mix-224, Qwen2-VL-2B-Instruct, and Qwen2-VL-7B-Instruct—using 1,000 images from each of COCO and Visual Genome and four metrics: POPE, ROPE, CHAIR, and THRONE. NOPE and a reduced FaithScore implementation are included in the toolkit but were not part of those reported evaluation runs.
+
+The thesis reports that replaying every reported result from the prediction cache reproduced its original result file exactly. This makes the cached outputs useful for studying how scoring and grading choices affect a result without rerunning model inference.
+
+<Note>
+  These experiment details describe the thesis evaluation. The repository's `demo.py` is a smaller, configurable entry point; see [Running evaluations](/running-evaluations) for its current options and [Metrics and models](/metrics-and-models) for implementation details.
+</Note>
