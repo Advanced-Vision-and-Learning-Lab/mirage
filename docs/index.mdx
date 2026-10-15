@@ -49,25 +49,35 @@ Mirage turns dataset examples into model responses, scores those responses, and 
 
 ## Reference model results
 
-These reference results compare three model configurations across COCO and Visual Genome. Values are percentages from 1,000 images per model and dataset. Higher is better for POPE accuracy, ROPE strict accuracy, and THRONE F1. Lower is better for CHAIR-I hallucination rate. The tables use Mintlify's native tabs and tables so the values remain readable on every screen size.
+These reference results compare eight model configurations across COCO and Visual Genome. Values are percentages. PaliGemma-3B and Qwen2-VL rows use 1,000 images per dataset; Gemma 4, Ministral 3, and Aya Vision rows use 500 images, a prefix of the same fixed candidate pool. Higher is better for POPE accuracy, ROPE strict accuracy, and THRONE F1. Lower is better for CHAIR-I hallucination rate. The tables use Mintlify's native tabs and tables so the values remain readable on every screen size.
 
 <Tabs>
 <Tab title="COCO">
 
 | Model | POPE accuracy ↑ | ROPE strict accuracy ↑ | CHAIR-I hallucination rate ↓ | THRONE F1 ↑ |
 | --- | ---: | ---: | ---: | ---: |
-| PaliGemma-3B | 94.2% | 21.6% | 9.1% | 72.9% |
-| Qwen2-VL-2B | 93.6% | 3.6% | 12.8% | 73.4% |
-| Qwen2-VL-7B | 93.5% | 13.1% | 12.7% | 72.9% |
+| PaliGemma-3B | 94.2% | 21.6% | 9.1% | 80.9% |
+| Qwen2-VL-2B | 93.6% | 3.6% | 12.8% | 83.8% |
+| Qwen2-VL-7B | 93.5% | 13.1% | 12.7% | 84.4% |
+| Gemma-4-E4B | 93.5% | 0.0% | 12.5% | 77.0% |
+| Ministral-3-8B | 88.1% | 5.1% | 13.7% | 80.8% |
+| Aya-Vision-8B | 95.5% | 24.5% | 16.9% | 82.2% |
+| Gemma-4-12B | 93.0% | 44.4% | 15.2% | 78.4% |
+| Ministral-3-14B | 88.2% | 3.0% | 14.1% | 81.6% |
 </Tab>
 <Tab title="Visual Genome">
 
 | Model | POPE accuracy ↑ | ROPE strict accuracy ↑ | CHAIR-I hallucination rate ↓ | THRONE F1 ↑ |
 | --- | ---: | ---: | ---: | ---: |
-| PaliGemma-3B | 88.0% | 8.2% | 67.8% | 21.5% |
-| Qwen2-VL-2B | 88.7% | 8.6% | 75.6% | 24.0% |
-| Qwen2-VL-7B | 89.5% | 10.3% | 69.3% | 23.6% |
+| PaliGemma-3B | 88.0% | 8.2% | 67.8% | 27.6% |
+| Qwen2-VL-2B | 88.7% | 8.6% | 75.6% | 27.4% |
+| Qwen2-VL-7B | 89.5% | 10.3% | 69.3% | 27.2% |
+| Gemma-4-E4B | 89.6% | 0.0% | 84.1% | 25.5% |
+| Ministral-3-8B | 84.6% | 0.3% | 87.7% | 26.4% |
+| Aya-Vision-8B | 88.1% | 8.9% | 85.6% | 26.8% |
+| Gemma-4-12B | 90.4% | 21.1% | 76.8% | 27.1% |
+| Ministral-3-14B | 83.9% | 0.1% | 86.6% | 26.6% |
 </Tab>
 </Tabs>
 
-ROPE strict accuracy requires an exact label match. THRONE F1 is normalized to 38 distractor categories per ground-truth object. Metrics measure different behaviors and should be compared within each metric, not combined into a single model ranking. The source values are in the [model results CSV](https://github.com/Advanced-Vision-and-Learning-Lab/mirage/blob/main/docs/model-results.csv). A new model belongs in these tables only after its results have been measured and reviewed.
+ROPE strict accuracy requires the extracted answer to match the label exactly, so it also reflects answer format. Gemma-4-E4B answers in markdown ("Based on the image, **box 1** is pointing to…"), which the strict extractor cannot parse, and Ministral 3 answers with long descriptive phrases; their lenient ROPE accuracy is 32–40% on COCO. Ministral 3 answers POPE with "No" about twice as often as "Yes" on balanced questions, which lowers its POPE accuracy. THRONE F1 uses a FLAN-T5-XL evaluator and 38 distractor categories per ground-truth object for every row (1,000 images for the PaliGemma-3B and Qwen2-VL rows, rescored from their cached captions); it supersedes the earlier FLAN-T5-base THRONE values. To reproduce it, pass `--throne-evaluator google/flan-t5-xl --throne-distractor-ratio 38`. Metrics measure different behaviors and should be compared within each metric, not combined into a single model ranking. The source values are in the [model results CSV](https://github.com/Advanced-Vision-and-Learning-Lab/mirage/blob/main/docs/model-results.csv). A new model belongs in these tables only after its results have been measured and reviewed.
