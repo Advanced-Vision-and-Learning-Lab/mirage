@@ -21,7 +21,7 @@ Prepare the dataset files and model weights locally, then run:
 python demo.py --dataset coco --metric chair --model paligemma --samples 5 --output results/chair-coco.json
 ```
 
-Mirage supports `paligemma`, `qwen2vl`, `gemma4-e4b`, `gemma4-12b`, `ministral3-8b`, `ministral3-14b`, and `aya-vision-8b`, plus `-think` variants of the Gemma 4 keys for a thinking ablation. See the [documentation](https://mirage-f432d87b.mintlify.app) for dataset setup, metrics, model configuration, and HPC instructions.
+Mirage supports `paligemma`, `qwen2vl`, `gemma4-e4b`, `gemma4-12b`, `ministral3-8b`, `ministral3-14b`, `aya-vision-8b`, and `muse-glimmer-30b`, plus `-think` variants of the Gemma 4 keys for a thinking ablation. See the [documentation](https://mirage-f432d87b.mintlify.app) for dataset setup, metrics, model configuration, and HPC instructions.
 
 ## Reference results
 

@@ -1,7 +1,7 @@
 """Generic wrapper for Hugging Face chat vision-language models.
 
 Covers models whose processor ships a chat template that accepts one image
-and one text turn (Gemma 4, Ministral 3, Aya Vision). Decoding is greedy by
+and one text turn (Gemma 4, Ministral 3, Aya Vision, Muse Glimmer). Decoding is greedy by
 default and only the newly generated tokens are returned.
 """
 
@@ -34,6 +34,8 @@ class HFChatVLM(BaseModel):
         thinking_tokens: With thinking on, extra new tokens added to
             ``max_new_tokens``; thought and answer share the combined budget.
         device: Device for inference (default: CUDA when available).
+        device_map: ``from_pretrained`` device map; ``"auto"`` splits the
+            weights across all visible GPUs (default: ``device``).
         torch_dtype: Weight dtype (default: bfloat16).
     """
 
@@ -43,6 +45,7 @@ class HFChatVLM(BaseModel):
         enable_thinking: bool = False,
         thinking_tokens: int = 1024,
         device: Optional[str] = None,
+        device_map: Optional[str] = None,
         torch_dtype: Optional[torch.dtype] = None,
         **kwargs,
     ):
@@ -51,6 +54,7 @@ class HFChatVLM(BaseModel):
         self.enable_thinking = enable_thinking
         self.thinking_tokens = thinking_tokens if enable_thinking else 0
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.device_map = device_map
         self.torch_dtype = torch_dtype or torch.bfloat16
         self.model = None
         self.processor = None
@@ -63,7 +67,7 @@ class HFChatVLM(BaseModel):
 
             self.processor = AutoProcessor.from_pretrained(self.model_name)
             self.model = AutoModelForImageTextToText.from_pretrained(
-                self.model_name, dtype=self.torch_dtype, device_map=self.device,
+                self.model_name, dtype=self.torch_dtype, device_map=self.device_map or self.device,
             ).eval()
             self._raw_logged = False
             vocab = getattr(self.processor.tokenizer, "get_vocab", dict)()
@@ -75,7 +79,8 @@ class HFChatVLM(BaseModel):
 
     def unload_model(self) -> None:
         if torch.cuda.is_available() and self.model is not None:
-            logger.info("Peak CUDA memory: %.2f GB", torch.cuda.max_memory_allocated() / 1e9)
+            for index in range(torch.cuda.device_count()):
+                logger.info("Peak CUDA memory (cuda:%d): %.2f GB", index, torch.cuda.max_memory_allocated(index) / 1e9)
         self.model = None
         self.processor = None
         if torch.cuda.is_available():
@@ -93,14 +98,7 @@ class HFChatVLM(BaseModel):
         content = [{"type": "text", "text": prompt}]
         if image is not None:
             content.insert(0, {"type": "image", "image": self.preprocess_image(image)})
-        inputs = self.processor.apply_chat_template(
-            [{"role": "user", "content": content}],
-            add_generation_prompt=True,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
-            enable_thinking=self.enable_thinking,
-        ).to(self.model.device)
+        inputs = self._build_inputs(content).to(self.model.device)
         for key, value in inputs.items():
             if torch.is_floating_point(value):
                 inputs[key] = value.to(self.torch_dtype)
@@ -124,6 +122,16 @@ class HFChatVLM(BaseModel):
         text = self.processor.decode(new_tokens, skip_special_tokens=True)
         return _THINKING_RE.sub("", text).strip()
 
+    def _build_inputs(self, content):
+        return self.processor.apply_chat_template(
+            [{"role": "user", "content": content}],
+            add_generation_prompt=True,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+            enable_thinking=self.enable_thinking,
+        )
+
     def batch_generate(
         self,
         prompts: List[str],
@@ -139,3 +147,53 @@ class HFChatThinkingVLM(HFChatVLM):
 
     def __init__(self, model_name: str, **kwargs):
         super().__init__(model_name, enable_thinking=True, **kwargs)
+
+
+class MuseGlimmerVLM(HFChatVLM):
+    """Muse Glimmer: reasoning skipped, weights split across all visible GPUs.
+
+    The chat template has no switch to turn reasoning off; after
+    ``<|start|>assistant`` the model chooses the reasoning channel
+    (``to=self``) or the answer channel (``to=user``). The prompt is prefilled
+    with the answer channel, so the response is the answer alone. The date the
+    template writes into the system turn is pinned so prompts do not change
+    from day to day.
+
+    The image processor asks for LANCZOS resizing but falls back to BICUBIC
+    with torchvision < 0.27. Images are therefore resized here with PIL
+    LANCZOS to the size the processor would pick, which makes its own resize a
+    same-size pass (pixel values identical to ``do_resize=False``).
+    """
+
+    ANSWER_PREFIX = " to=user<|message|>"
+    TEMPLATE_KWARGS = {"reasoning_strength": "low", "current_date": "2026-10-15"}
+
+    def __init__(self, model_name: str, **kwargs):
+        kwargs.setdefault("device_map", "auto")
+        super().__init__(model_name, **kwargs)
+
+    def preprocess_image(self, image):
+        from transformers.models.muse_glimmer.image_processing_muse_glimmer import smart_resize
+
+        image = super().preprocess_image(image)
+        processor = self.processor.image_processor
+        height, width = smart_resize(image.height, image.width,
+                                     processor.patch_size * processor.merge_size, processor.max_image_tokens)
+        if (width, height) == image.size:
+            return image
+        return image.resize((width, height), Image.LANCZOS)
+
+    def _build_inputs(self, content):
+        images = [part.pop("image") for part in content if part["type"] == "image"]
+        text = self.processor.apply_chat_template(
+            [{"role": "user", "content": content}],
+            add_generation_prompt=True,
+            tokenize=False,
+            **self.TEMPLATE_KWARGS,
+        )
+        return self.processor(
+            text=[text + self.ANSWER_PREFIX],
+            images=images or None,
+            add_special_tokens=False,
+            return_tensors="pt",
+        )
