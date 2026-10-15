@@ -20,10 +20,19 @@ Metric availability can depend on the dataset path and local files. For example,
 
 ## Models
 
-The prediction factory supports two local vision-language model wrappers:
+The prediction factory supports these local vision-language models:
 
-- `paligemma` uses `google/paligemma-3b-mix-224` by default. Override the model identifier or local path with `MIRAGE_PALIGEMMA_MODEL_PATH`.
-- `qwen2vl` uses `Qwen/Qwen2-VL-2B-Instruct` by default. Override it with `MIRAGE_QWEN_MODEL_PATH`.
+| Key | Default checkpoint | Path override |
+| --- | --- | --- |
+| `paligemma` | `google/paligemma-3b-mix-224` | `MIRAGE_PALIGEMMA_MODEL_PATH` |
+| `qwen2vl` | `Qwen/Qwen2-VL-2B-Instruct` | `MIRAGE_QWEN_MODEL_PATH` |
+| `gemma4-e4b` | `google/gemma-4-E4B-it` | `MIRAGE_GEMMA4_E4B_MODEL_PATH` |
+| `gemma4-12b` | `google/gemma-4-12B-it` | `MIRAGE_GEMMA4_12B_MODEL_PATH` |
+| `ministral3-8b` | `mistralai/Ministral-3-8B-Instruct-2512-BF16` | `MIRAGE_MINISTRAL3_8B_MODEL_PATH` |
+| `ministral3-14b` | `mistralai/Ministral-3-14B-Instruct-2512-BF16` | `MIRAGE_MINISTRAL3_14B_MODEL_PATH` |
+| `aya-vision-8b` | `CohereLabs/aya-vision-8b` | `MIRAGE_AYA_VISION_8B_MODEL_PATH` |
+
+The Gemma 4, Ministral 3, and Aya Vision keys share one wrapper, `models/hf_chat_vlm.py`. It sends one image and one text turn through the processor's chat template, decodes only the new tokens, and runs with thinking disabled (`enable_thinking=False`). Aya Vision is a gated, non-commercial (CC-BY-NC) checkpoint; accept its license on Hugging Face before downloading it.
 
 These are the model keys currently supported by `demo.py`. A different checkpoint can be used through the model-path override only when it is compatible with that wrapper. DeepSeek-VL is not currently supported; adding it requires a model wrapper and factory registration before it can be selected as a separate model key. See [Maintain the docs](/maintaining-docs) for the implementation handoff requirements.
 

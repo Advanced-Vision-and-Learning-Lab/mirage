@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Tuple
 
 from PIL import Image
 
+from predict.factory import _REGISTRY as MODEL_REGISTRY
+
 logger = logging.getLogger("mirage.demo")
 CAPTION_PROMPT = (
     "Describe this image in detail. List every object you can see, their colors, "
@@ -54,7 +56,7 @@ def _parse_args() -> argparse.Namespace:
         choices=("pope", "chair", "rope", "throne", "faithscore", "nope"),
         default="chair",
     )
-    parser.add_argument("--model", choices=("paligemma", "qwen2vl"), default=None)
+    parser.add_argument("--model", choices=tuple(MODEL_REGISTRY), default=None)
     parser.add_argument("--samples", type=int, default=5, help="Number of evaluated images")
     parser.add_argument(
         "--pool-size", type=int, default=None,

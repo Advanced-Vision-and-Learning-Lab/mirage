@@ -16,7 +16,7 @@ python demo.py \
   --output results/chair-coco.json
 ```
 
-`--dataset` accepts `coco` or `visual_genome`. `--model` accepts `paligemma` or `qwen2vl`; if omitted, Mirage reads `MIRAGE_VL_MODEL` and otherwise defaults to `paligemma`. `--samples` sets the number of evaluated images for the selected path.
+`--dataset` accepts `coco` or `visual_genome`. `--model` accepts any model key in [Metrics and models](/metrics-and-models#models); if omitted, Mirage reads `MIRAGE_VL_MODEL` and otherwise defaults to `paligemma`. `--samples` sets the number of evaluated images for the selected path.
 
 ## Useful options
 
@@ -24,7 +24,7 @@ python demo.py \
 | --- | --- |
 | `--dataset` | Select `coco` or `visual_genome`. |
 | `--metric` | Select `pope`, `chair`, `rope`, `throne`, `faithscore`, or `nope`. |
-| `--model` | Select `paligemma` or `qwen2vl`. |
+| `--model` | Select a model key, such as `paligemma`, `qwen2vl`, or `gemma4-e4b`. |
 | `--samples` | Set the requested evaluation sample count. |
 | `--pool-size` | Set how many dataset entries are loaded before evaluation. Defaults to 2000 (3000 for COCO ROPE). The pool also fixes the Visual Genome THRONE categories and ROPE prompt classes, so keep it fixed when comparing runs with different `--samples`. |
 | `--annotations`, `--images` | Override default annotation and image paths. |
