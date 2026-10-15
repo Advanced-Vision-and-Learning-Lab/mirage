@@ -9,10 +9,10 @@ The demo exposes these metric choices:
 
 | Metric | What the implementation evaluates | Notes |
 | --- | --- | --- |
-| CHAIR | Object mentions in generated image captions against annotated objects. | Uses COCO synonym handling for COCO; Visual Genome uses its object names. |
+| CHAIR | Object mentions in generated image captions against annotated objects. | Uses COCO synonym handling for COCO; Visual Genome uses its object names without stopwords, colours, and other non-object strings. |
 | POPE | Yes/no answers to questions about objects present or absent in an image. | The demo uses random negative-object sampling by default. |
 | ROPE | Object recognition for numbered, boxed image regions. | The demo uses five boxes and asks the model to identify each region. |
-| THRONE | Caption object predictions against the dataset's object categories. | Uses the loaded dataset's category or object-name list. |
+| THRONE | Caption object predictions against the dataset's object categories. | Uses the loaded dataset's category or object-name list. Choose the evaluator with `--throne-evaluator` and limit questions to ground-truth objects plus sampled distractors with `--throne-distractor-ratio`. |
 | FaithScore | Faithfulness checks on generated captions. | Requires a local LLaMA model path via `--llama-model` or `MIRAGE_LLAMA_MODEL_PATH`, plus a PaliGemma verification model. |
 | NOPE | Scores responses to the NOPE question set. | Requires pre-generated Turn 2 responses via `--nope-turn2`; Turn 1 input is optional. |
 
