@@ -36,7 +36,7 @@ source "${PROJECT_ROOT}/venv/bin/activate"
 export HF_HOME="${MIRAGE_HF_HOME:-${PROJECT_ROOT}/huggingface}"
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
-: "${MIRAGE_CACHE_DIR:?set MIRAGE_CACHE_DIR to this cell's cache directory}"
+: "${MIRAGE_CACHE_DIR:?set MIRAGE_CACHE_DIR to the cache directory for this cell}"
 export MIRAGE_CACHE_DIR
 
 name="${SLURM_JOB_NAME:-local}"
