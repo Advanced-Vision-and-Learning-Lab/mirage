@@ -31,6 +31,8 @@ class HFChatVLM(BaseModel):
     Args:
         model_name: HF model id or local snapshot path.
         enable_thinking: Forwarded to the chat template; off for evaluation.
+        thinking_tokens: With thinking on, extra new tokens added to
+            ``max_new_tokens``; thought and answer share the combined budget.
         device: Device for inference (default: CUDA when available).
         torch_dtype: Weight dtype (default: bfloat16).
     """
@@ -39,6 +41,7 @@ class HFChatVLM(BaseModel):
         self,
         model_name: str,
         enable_thinking: bool = False,
+        thinking_tokens: int = 1024,
         device: Optional[str] = None,
         torch_dtype: Optional[torch.dtype] = None,
         **kwargs,
@@ -46,6 +49,7 @@ class HFChatVLM(BaseModel):
         super().__init__(model_name, model_type="local", **kwargs)
         self.supports_images = True
         self.enable_thinking = enable_thinking
+        self.thinking_tokens = thinking_tokens if enable_thinking else 0
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.torch_dtype = torch_dtype or torch.bfloat16
         self.model = None
@@ -101,7 +105,8 @@ class HFChatVLM(BaseModel):
             if torch.is_floating_point(value):
                 inputs[key] = value.to(self.torch_dtype)
         gen = {**self.config, **kwargs}
-        gen_kwargs = {"max_new_tokens": gen["max_new_tokens"], "do_sample": bool(gen.get("do_sample"))}
+        gen_kwargs = {"max_new_tokens": gen["max_new_tokens"] + self.thinking_tokens,
+                      "do_sample": bool(gen.get("do_sample"))}
         if gen_kwargs["do_sample"]:
             gen_kwargs.update({k: gen[k] for k in ("temperature", "top_p", "top_k") if gen.get(k) is not None})
         with torch.inference_mode():
@@ -114,6 +119,8 @@ class HFChatVLM(BaseModel):
         ends = [i for i, token in enumerate(new_tokens) if token in self._thinking_end_ids]
         if ends:
             new_tokens = new_tokens[ends[-1] + 1:]
+        elif self.enable_thinking and len(new_tokens) >= gen_kwargs["max_new_tokens"]:
+            logger.warning("Thinking block not closed within %d tokens", gen_kwargs["max_new_tokens"])
         text = self.processor.decode(new_tokens, skip_special_tokens=True)
         return _THINKING_RE.sub("", text).strip()
 
@@ -125,3 +132,10 @@ class HFChatVLM(BaseModel):
     ) -> List[Optional[str]]:
         images = images or [None] * len(prompts)
         return [self.generate(prompt, image=image, **kwargs) for prompt, image in zip(prompts, images)]
+
+
+class HFChatThinkingVLM(HFChatVLM):
+    """``HFChatVLM`` with thinking on; a separate class so cache keys never mix modes."""
+
+    def __init__(self, model_name: str, **kwargs):
+        super().__init__(model_name, enable_thinking=True, **kwargs)

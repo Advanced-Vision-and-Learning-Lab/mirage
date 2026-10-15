@@ -13,7 +13,7 @@ This guide covers a first GPU run and repeatable model comparisons on a SLURM cl
 - The model weights already available in the Hugging Face cache or on cluster storage. Nodes without internet access cannot download weights during the job.
 - A GPU allocation sized for the selected checkpoint and evaluation. The sample SLURM request is a starting point, not a guarantee that a model fits.
 
-The repository exposes `paligemma`, `qwen2vl`, `gemma4-e4b`, `gemma4-12b`, `ministral3-8b`, `ministral3-14b`, and `aya-vision-8b` to `demo.py`. See [Metrics and models](/metrics-and-models) for checkpoint defaults and overrides. The Gemma 4, Ministral 3, and Aya Vision keys were tested on A100 40 GB GPUs with `transformers==5.19.0`, `torch==2.9.1` (CUDA 12.8), and `mistral-common==1.12.0`, as pinned in `requirements.txt`. DeepSeek-VL is not currently implemented as a Mirage model backend, so it cannot be selected with `--model` or `MIRAGE_VL_MODEL`.
+The repository exposes `paligemma`, `qwen2vl`, `gemma4-e4b`, `gemma4-12b`, `ministral3-8b`, `ministral3-14b`, and `aya-vision-8b` to `demo.py`, plus `gemma4-e4b-think` and `gemma4-12b-think` for a thinking ablation. See [Metrics and models](/metrics-and-models) for checkpoint defaults and overrides. The Gemma 4, Ministral 3, and Aya Vision keys were tested on A100 40 GB GPUs with `transformers==5.19.0`, `torch==2.9.1` (CUDA 12.8), and `mistral-common==1.12.0`, as pinned in `requirements.txt`. DeepSeek-VL is not currently implemented as a Mirage model backend, so it cannot be selected with `--model` or `MIRAGE_VL_MODEL`.
 
 ## Clone and prepare the environment
 

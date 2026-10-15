@@ -31,8 +31,9 @@ The prediction factory supports these local vision-language models:
 | `ministral3-8b` | `mistralai/Ministral-3-8B-Instruct-2512-BF16` | `MIRAGE_MINISTRAL3_8B_MODEL_PATH` |
 | `ministral3-14b` | `mistralai/Ministral-3-14B-Instruct-2512-BF16` | `MIRAGE_MINISTRAL3_14B_MODEL_PATH` |
 | `aya-vision-8b` | `CohereLabs/aya-vision-8b` | `MIRAGE_AYA_VISION_8B_MODEL_PATH` |
+| `gemma4-e4b-think`, `gemma4-12b-think` | Same as the Gemma 4 keys, thinking on | Same as the Gemma 4 keys |
 
-The Gemma 4, Ministral 3, and Aya Vision keys share one wrapper, `models/hf_chat_vlm.py`. It sends one image and one text turn through the processor's chat template, decodes only the new tokens, and runs with thinking disabled (`enable_thinking=False`). Aya Vision is a gated, non-commercial (CC-BY-NC) checkpoint; accept its license on Hugging Face before downloading it.
+The Gemma 4, Ministral 3, and Aya Vision keys share one wrapper, `models/hf_chat_vlm.py`. It sends one image and one text turn through the processor's chat template, decodes only the new tokens, and runs with thinking disabled (`enable_thinking=False`). The `gemma4-e4b-think` and `gemma4-12b-think` keys load the same Gemma 4 checkpoints with thinking enabled. They add 1,024 tokens to each metric's `max_new_tokens`, shared by the thought and the answer, and drop the thought before scoring. Aya Vision is a gated, non-commercial (CC-BY-NC) checkpoint; accept its license on Hugging Face before downloading it.
 
 These are the model keys currently supported by `demo.py`. A different checkpoint can be used through the model-path override only when it is compatible with that wrapper. DeepSeek-VL is not currently supported; adding it requires a model wrapper and factory registration before it can be selected as a separate model key. See [Maintain the docs](/maintaining-docs) for the implementation handoff requirements.
 

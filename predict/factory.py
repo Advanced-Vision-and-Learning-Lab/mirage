@@ -27,6 +27,11 @@ _REGISTRY = {
                        "MIRAGE_MINISTRAL3_14B_MODEL_PATH", "mistralai/Ministral-3-14B-Instruct-2512-BF16"),
     "aya-vision-8b": ("models.hf_chat_vlm", "HFChatVLM",
                       "MIRAGE_AYA_VISION_8B_MODEL_PATH", "CohereLabs/aya-vision-8b"),
+    # Thinking-on variants for the ablation (same checkpoints).
+    "gemma4-e4b-think": ("models.hf_chat_vlm", "HFChatThinkingVLM",
+                         "MIRAGE_GEMMA4_E4B_MODEL_PATH", "google/gemma-4-E4B-it"),
+    "gemma4-12b-think": ("models.hf_chat_vlm", "HFChatThinkingVLM",
+                         "MIRAGE_GEMMA4_12B_MODEL_PATH", "google/gemma-4-12B-it"),
 }
 
 
