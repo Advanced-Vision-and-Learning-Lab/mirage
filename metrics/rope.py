@@ -44,6 +44,19 @@ _SUBSTRING = SubstringMatcher()
 _EXACT = ExactMatcher()
 
 
+# parse_single_response normalizes answer formatting before exact matching:
+# markdown marks, a leading header or list marker, and surrounding quotes.
+_MARKUP_RE = re.compile(r"[*`]+")
+_LINE_PREFIX_RE = re.compile(r"^(?:#+\s*|[-\u2022]\s+|\d+[.)]\s+)")
+_QUOTES = "\"'\u2018\u2019\u201c\u201d"
+# "... is a/an/the X", "... appears to be (a) X", "... is pointing to (the) X";
+# not an echoed question ("I am not sure what is the object inside box 1").
+_ANSWER_RE = re.compile(
+    r"\b(?<!what )(?:(?:is|appears\s+to\s+be|seems\s+to\s+be)\s+(?:pointing\s+to\s+)?(?:an?|the)"
+    r"|appears\s+to\s+be|seems\s+to\s+be|is\s+pointing\s+to)\s+(.+?)(?:[.,;:(]|$)"
+)
+
+
 def _rects_overlap(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> bool:
     """True when two (x0, y0, x1, y1) rectangles share any area."""
     return not (a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1])
@@ -331,7 +344,9 @@ class ROPEMetric(BaseMetric):
         Parse a single-box model response into a class name.
 
         Handles both terse outputs (PaliGemma: "spoon") and verbose
-        outputs (Qwen: "The object inside box 1 is a wooden cabinet").
+        outputs (Qwen: "The object inside box 1 is a wooden cabinet"), with
+        markdown, quotes, and "appears to be" / "is pointing to" lead-ins
+        removed ("Based on the image, **box 1** is pointing to a **cup**").
 
         Args:
             response: Raw model output string for a single-box query.
@@ -340,14 +355,19 @@ class ROPEMetric(BaseMetric):
             Predicted class name string.
         """
         text = response.strip().lower().split("\n")[0].strip()
-        # Extract the noun phrase after "is a/an" (Qwen-style verbose output).
-        m = re.search(r"\bis\s+an?\s+(.+?)(?:[.,;:]|$)", text)
+        # Formatting only: drop markdown emphasis/code marks and a leading
+        # header or list marker. Matching itself stays exact.
+        text = _LINE_PREFIX_RE.sub("", _MARKUP_RE.sub("", text)).strip()
+        # Extract the noun phrase after echoed boilerplate ("is a/an/the",
+        # "appears to be", "is pointing to"); a parenthetical aside ends it.
+        m = _ANSWER_RE.search(text)
         if m:
             phrase = m.group(1).strip()
             phrase = re.sub(r"\s+(of|on|in|at|with|that|which|for)(\b.*)?$", "", phrase).strip()
+            phrase = phrase.strip(_QUOTES)
             if phrase:
                 return phrase
-        return text.strip(" .,;:()")
+        return text.strip(" .,;:()" + _QUOTES)
 
     def evaluate_predictions(
         self,
