@@ -32,6 +32,7 @@ python demo.py \
 | `--max-new-tokens` | Set caption generation length for CHAIR, THRONE, and FaithScore; defaults to 512. |
 | `--throne-evaluator` | Set the THRONE evaluator model id or local path; defaults to `MIRAGE_THRONE_EVALUATOR_MODEL`, else `google/flan-t5-base`. |
 | `--throne-distractor-ratio` | Ask THRONE about each image's ground-truth objects plus this many distractor objects per ground-truth object, instead of the full vocabulary. Defaults to `MIRAGE_THRONE_DISTRACTOR_RATIO`. |
+| `--throne-evaluator-max-tokens` | THRONE evaluator input window in tokens. A caption longer than the window minus the question prompt is trimmed from its end, and the evaluator never sees the rest. Defaults to `MIRAGE_THRONE_EVALUATOR_MAX_TOKENS`, else 512. The published results use 1024, which fits every caption up to the 512-token generation cap. |
 | `--cache-only` | Serve every prediction from the response cache and fail on the first miss instead of loading the model. Use it to rescore cached captions with another metric. |
 | `--pope-questions` | Set POPE questions per image; defaults to 6. |
 | `--output` | Write the formatted result as JSON. |

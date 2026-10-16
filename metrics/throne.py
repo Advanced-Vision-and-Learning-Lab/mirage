@@ -92,8 +92,9 @@ _PLURAL_CATEGORIES = {"skis", "scissors"}
 _EVALUATOR_GEN_CONFIG = {"max_new_tokens": 5, "do_sample": False}
 
 # FLAN-T5 was trained at 512 tokens. The evaluator prompt is
-# "Text: {caption}\n\n{instruction}\n\n{question}"; if it is longer than this
-# only the caption is trimmed (from its end) so the question always survives.
+# "Text: {caption}\n\n{instruction}\n\n{question}"; if it is longer than the
+# window only the caption is trimmed (from its end) so the question always
+# survives. T5 has no absolute positions, so a longer window is valid.
 _EVALUATOR_MAX_TOKENS = 512
 
 _DTYPES = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
@@ -163,6 +164,11 @@ class ThroneMetric(BaseMetric):
             one; COCO's native ratio is ~38. Recall is unaffected because
             every ground-truth category is still asked. The draw is seeded
             from the caption, so it is reproducible without an image id.
+        evaluator_max_tokens: Evaluator input window in tokens (default:
+            ``$MIRAGE_THRONE_EVALUATOR_MAX_TOKENS``, else 512). Captions longer
+            than the window minus the prompt are trimmed from the end, so the
+            evaluator never sees their tail. It is part of the evaluator cache
+            key, so changing it re-asks every question.
     """
 
     def __init__(
@@ -176,6 +182,7 @@ class ThroneMetric(BaseMetric):
         evaluator_dtype: Optional[str] = None,
         evaluator_cache: Optional[SQLiteResponseCache] = None,
         distractor_ratio: Optional[float] = None,
+        evaluator_max_tokens: Optional[int] = None,
     ):
         super().__init__("throne")
 
@@ -197,6 +204,10 @@ class ThroneMetric(BaseMetric):
         if distractor_ratio is None and env_ratio:
             distractor_ratio = float(env_ratio)
         self._distractor_ratio = distractor_ratio
+        env_window = os.environ.get("MIRAGE_THRONE_EVALUATOR_MAX_TOKENS")
+        if evaluator_max_tokens is None and env_window:
+            evaluator_max_tokens = int(env_window)
+        self._max_input_tokens = evaluator_max_tokens or _EVALUATOR_MAX_TOKENS
         self._questions_per_image: List[int] = []
         self._num_question_formats = min(
             max(num_question_formats, 1),
@@ -241,7 +252,7 @@ class ThroneMetric(BaseMetric):
                 "model_id": model_id,
                 "revision": revision,
                 "dtype": str(self._evaluator_dtype()),
-                "max_input_tokens": _EVALUATOR_MAX_TOKENS,
+                "max_input_tokens": self._max_input_tokens,
                 "granularity": "caption-bundle",
             },
             defaults=dict(_EVALUATOR_GEN_CONFIG),
@@ -307,7 +318,7 @@ class ThroneMetric(BaseMetric):
             key=len,
         )
         overhead = len(tok(f"Text: \n\n{THRONE_INSTRUCTIONS[0]}\n\n{longest_q}").input_ids) + 8
-        budget = _EVALUATOR_MAX_TOKENS - overhead
+        budget = self._max_input_tokens - overhead
         ids = tok(caption, add_special_tokens=False).input_ids
         if len(ids) <= budget:
             return caption
@@ -421,7 +432,7 @@ class ThroneMetric(BaseMetric):
                 return_tensors="pt",
                 padding=True,
                 truncation=True,
-                max_length=512,
+                max_length=self._max_input_tokens,
             ).to(self._device)
 
             output_ids = self._evaluator_model.generate(
@@ -622,6 +633,7 @@ class ThroneMetric(BaseMetric):
             "evaluator_model": self._evaluator_model_name,
             "evaluator_dtype": self._evaluator_dtype_name,
             "num_question_formats": M,
+            "evaluator_max_input_tokens": self._max_input_tokens,
             "num_truncated_evaluator_inputs": self._truncated_inputs,
             "distractor_ratio": self._distractor_ratio,
             "median_questions_per_image": (
@@ -631,7 +643,7 @@ class ThroneMetric(BaseMetric):
         }
         if self._truncated_inputs:
             logger.warning("THRONE: %d/%d captions were trimmed to fit the evaluator's %d-token window",
-                           self._truncated_inputs, num_images, _EVALUATOR_MAX_TOKENS)
+                           self._truncated_inputs, num_images, self._max_input_tokens)
 
         return self.results
 

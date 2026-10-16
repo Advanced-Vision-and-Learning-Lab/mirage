@@ -181,13 +181,14 @@ def test_throne_flags_and_cache_only(tmp_path, monkeypatch):
         "demo.py", "--dataset", "visual_genome", "--metric", "throne", "--model", "paligemma",
         "--samples", "1", "--annotations", str(annotations), "--images", str(images_dir),
         "--throne-evaluator", "/models/flan-t5-xl", "--throne-distractor-ratio", "38",
-        "--cache-only",
+        "--throne-evaluator-max-tokens", "1024", "--cache-only",
     ])
     assert demo.main() == 0
     assert not loaded
     assert len(calls) == 1
     assert seen["init"]["evaluator_model_name"] == "/models/flan-t5-xl"
     assert seen["init"]["distractor_ratio"] == 38.0
+    assert seen["init"]["evaluator_max_tokens"] == 1024
     # VG THRONE categories come from the loaded pool only ('bus' is not on disk).
     assert seen["init"]["object_categories"] == ["cat", "dog", "red", "the"]
     assert seen["ground_truth"] == [["dog", "the", "red"]]

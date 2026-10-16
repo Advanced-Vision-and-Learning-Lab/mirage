@@ -82,6 +82,11 @@ def _parse_args() -> argparse.Namespace:
              "(default: $MIRAGE_THRONE_DISTRACTOR_RATIO, else the full vocabulary)",
     )
     parser.add_argument(
+        "--throne-evaluator-max-tokens", type=int, default=None,
+        help="THRONE evaluator input window in tokens; longer captions are trimmed "
+             "from the end (default: $MIRAGE_THRONE_EVALUATOR_MAX_TOKENS, else 512)",
+    )
+    parser.add_argument(
         "--cache-only", action="store_true",
         help="Never load the model; fail on the first prediction-cache miss",
     )
@@ -252,6 +257,7 @@ def _evaluate(args: argparse.Namespace, model, loader, samples, all_objects) -> 
             evaluator_model_name=args.throne_evaluator,
             object_categories=categories,
             distractor_ratio=args.throne_distractor_ratio,
+            evaluator_max_tokens=args.throne_evaluator_max_tokens,
         )
         metric.evaluate(captions, ground_truth)
     elif args.metric == "faithscore":
