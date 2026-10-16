@@ -49,6 +49,8 @@ COCO and Visual Genome captions use different prompts (`CAPTION_PROMPT` and `VG_
 
 The JSON result includes `cache_stats` with prediction-cache hits and misses.
 
+The reference tables are rescored offline: `python -m metrics.judged --root <tree> --out final_tables.json` reads the prediction caches and result JSONs of a results tree (`datasets/`, `cache/`, `results/`) plus the verdicts in `judgments/`, and stops with a list of any items that still need the judge ([Methodology](/methodology)).
+
 ## Special case: NOPE
 
 NOPE consumes a Turn 2 response JSON file and runs model inference on the corresponding images. Provide it with `--nope-turn2`; `--nope-turn1` is optional:

@@ -57,6 +57,51 @@ _ANSWER_RE = re.compile(
 )
 
 
+# Judged ROPE: the answer key the judge graded. A first noun phrase, not the
+# strict extractor above; changing it orphans the stored verdicts.
+_JUDGE_QUANT = (r"(?:a\s+|an\s+|the\s+)?(?:small\s+|large\s+)?(?:piece|pieces|slice|slices|part|parts|pair|pairs|"
+                r"group|groups|stack|stacks|section|set|bunch|collection|pile|row|rows|cluster|portion|close-up|"
+                r"closeup|corner|edge|side|top|bottom|view|image|picture|photo)\s+of\s+(?:the\s+|a\s+|an\s+|some\s+)?")
+_JUDGE_LEAD = re.compile(r"(?:box\s*\d+\s*(?:contains|shows|has)?|is|appears\s+to\s+be|seems\s+to\s+be|looks\s+like|"
+                         r"is\s+likely|is\s+pointing\s+to)\s+(?:an?\s+|the\s+|some\s+)?(.+)")
+_JUDGE_ARTICLES = {"a", "an", "the", "some", "two", "three", "several"}
+
+
+def _judge_norm(name: str) -> str:
+    from .chair import _singularize
+
+    toks = re.findall(r"[a-z]+", name.lower())
+    while toks and toks[0] in _JUDGE_ARTICLES:
+        toks = toks[1:]
+    if not toks:
+        return ""
+    toks[-1] = _singularize(toks[-1])
+    return " ".join(toks)
+
+
+def judged_answer(response: str, pred: str) -> str:
+    """Answer key for a judged ROPE verdict: the first noun run of the first
+    alternative ("X or Y" -> X) after lead-ins and partitives are removed,
+    normalized; ``pred`` (the strict extraction) when no noun is found."""
+    import nltk
+
+    line = re.sub(r"[*_`#>\"“”]", "", response.strip()[:400].strip().split("\n")[0].lower()).strip()
+    m = next(_JUDGE_LEAD.finditer(line), None)
+    text = re.split(r"[.;:(—]|\s-\s", m.group(1) if m else line)[0]
+    alts = []
+    for a in re.split(r"\s+or\s+|,\s*|\s+and\s+", text):
+        a = re.sub("^" + _JUDGE_QUANT, "", a.strip())
+        a = re.sub(r"\s+(?:of|on|in|at|with|that|which|for|from|near|behind|under)\b.*$", "", a)
+        noun = []
+        for w, t in (nltk.pos_tag(nltk.word_tokenize(a)) if a else []):
+            if t.startswith("NN"):
+                noun.append(w)
+            elif noun:
+                break
+        if noun:
+            alts.append(" ".join(noun))
+    return _judge_norm((alts or [pred])[0]) or pred
+
 def _rects_overlap(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> bool:
     """True when two (x0, y0, x1, y1) rectangles share any area."""
     return not (a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1])

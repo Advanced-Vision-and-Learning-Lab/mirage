@@ -13,7 +13,7 @@ import os
 import sqlite3
 import zlib
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +147,13 @@ class SQLiteResponseCache:
             logger.warning("cache read failed, treating as miss: %s", exc)
             return {}
         return found
+
+    def rows(self) -> Iterator[Tuple[str, Optional[str], str]]:
+        """Yield ``(prompt, image_hash, response)`` for every stored row (offline rescoring)."""
+        if self._conn is None:
+            return
+        for prompt, image_hash, blob in self._conn.execute("SELECT prompt, image_hash, response FROM predictions"):
+            yield prompt, image_hash, zlib.decompress(blob).decode("utf-8")
 
     def put(self, key: str, response: str, *, meta: Dict[str, Any]) -> None:
         """Insert one response; existing rows for the same key are kept as-is.

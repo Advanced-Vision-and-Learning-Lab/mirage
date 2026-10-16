@@ -16,6 +16,8 @@ The demo exposes these metric choices:
 | FaithScore | Faithfulness checks on generated captions. | Requires a local LLaMA model path via `--llama-model` or `MIRAGE_LLAMA_MODEL_PATH`, plus a PaliGemma verification model. |
 | NOPE | Scores responses to the NOPE question set. | Requires pre-generated Turn 2 responses via `--nope-turn2`; Turn 1 input is optional. |
 
+The reference tables report judged versions of POPE, ROPE, CHAIR and THRONE (Mod-POPE, Mod-ROPE, Mod-CHAIR, class-wise THRONE F0.5). They are rescored from cached outputs and static judge verdicts with `python -m metrics.judged`; see [Methodology](/methodology).
+
 Metric availability can depend on the dataset path and local files. For example, ROPE needs annotated boxes, while NOPE reads its response JSON input rather than the normal dataset caption path.
 
 ## Models

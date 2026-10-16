@@ -1,5 +1,6 @@
 import logging
 import functools
+import re
 from typing import Dict, List, Any, Set, Tuple, Optional
 from collections import Counter
 
@@ -389,6 +390,42 @@ class ChairMetric(BaseMetric):
             'gt_set': gt_set,
         }
 
+    def tag_mentions(self, caption: str, ground_truth_objects: List[str]) -> List[Dict[str, Any]]:
+        """Object mentions of ``caption`` with their part of speech in context (judged CHAIR).
+
+        Tokens, singularization and double words follow :meth:`caption_to_words`
+        (without the toilet-seat and colour rules). Each mention records
+        ``word`` (canonical), ``tok`` (as written), ``pos`` and ``noun`` (NLTK
+        tag in context), ``hall`` (not in the annotations) and, for
+        hallucinated words, ``rel``/``rel_gt``: how the word relates to an
+        annotation (see :func:`variant_of_gt`).
+        """
+        words = []
+        for tok, tag in nltk.pos_tag(nltk.word_tokenize(caption)):
+            t = tok.lower()
+            words.append((tok, tag, t if t in self._mscoco_objects_set else _sing(t)))
+        merged, i = [], 0
+        while i < len(words):
+            if i + 1 < len(words):
+                pair = f"{words[i][2]} {words[i + 1][2]}"
+                if pair in self.double_word_dict:
+                    merged.append((f"{words[i][0]} {words[i + 1][0]}", words[i + 1][1], self.double_word_dict[pair]))
+                    i += 2
+                    continue
+            merged.append(words[i])
+            i += 1
+        gt = {self.normalize_object(o) for o in ground_truth_objects}
+        mentions = []
+        for tok, tag, w in merged:
+            if w not in self._mscoco_objects_set:
+                continue
+            canon = self.inverse_synonym_dict[w]
+            hall = canon not in gt
+            rel, rel_gt = variant_of_gt(w, ground_truth_objects) if hall else (None, None)
+            mentions.append({"tok": tok, "word": canon, "pos": tag, "hall": hall,
+                             "noun": tag.startswith("NN"), "rel": rel, "rel_gt": rel_gt})
+        return mentions
+
     def evaluate_caption(
         self,
         caption: str,
@@ -559,3 +596,87 @@ class ChairMetric(BaseMetric):
         self.caption_details = []
         self.object_hallucination_counts = Counter()
         self.normalize_object.cache_clear()
+
+
+# ----------------------------------------------------------------------
+# Relation of a mentioned word to the annotations (judged CHAIR and THRONE)
+# ----------------------------------------------------------------------
+
+# Hypernyms too broad to tie two names together ("object", "artifact", ...).
+_GENERIC_SYNSETS = {
+    "entity.n.01", "physical_entity.n.01", "object.n.01", "whole.n.02", "artifact.n.01",
+    "abstraction.n.06", "matter.n.03", "causal_agent.n.01", "living_thing.n.01", "organism.n.01",
+    "instrumentality.n.03", "structure.n.01", "device.n.01", "container.n.01", "covering.n.02",
+    "commodity.n.01", "location.n.01", "region.n.01", "part.n.01", "thing.n.12", "group.n.01",
+    "unit.n.03", "material.n.01", "substance.n.01", "natural_object.n.01", "plant_part.n.01",
+    "body_part.n.01", "attribute.n.02", "measure.n.02", "psychological_feature.n.01", "event.n.01",
+    "act.n.02", "communication.n.02", "relation.n.01", "point.n.02", "area.n.01", "surface.n.01",
+    "solid.n.01", "fluid.n.01", "food.n.01", "food.n.02", "vertebrate.n.01", "animal.n.01",
+    "plant.n.02", "vascular_plant.n.01", "conveyance.n.03", "equipment.n.01"}
+
+
+@functools.lru_cache(maxsize=None)
+def _sing(word: str) -> str:
+    return _singularize(word.lower().strip())
+
+
+@functools.lru_cache(maxsize=None)
+def _head(name: str) -> str:
+    toks = re.findall(r"[a-z]+", name.lower())
+    return _sing(toks[-1]) if toks else ""
+
+
+@functools.lru_cache(maxsize=None)
+def _wordnet_relation(a: str, b: str) -> Optional[str]:
+    """``synonym`` if the nouns share a synset (top 3 senses), ``hypernym`` if one
+    is within 3 hypernym levels of the other (generic synsets excluded)."""
+    from nltk.corpus import wordnet as wn
+
+    if not a or not b:
+        return None
+    if a == b:
+        return "same"
+    sa, sb = wn.synsets(a, pos=wn.NOUN)[:3], wn.synsets(b, pos=wn.NOUN)[:3]
+    if not sa or not sb:
+        return None
+    if set(sa) & set(sb):
+        return "synonym"
+    for x, y in ((sa, sb), (sb, sa)):
+        names = {s.name() for s in y}
+        for s in x:
+            hyp, frontier = set(), [s]
+            for _ in range(3):
+                frontier = [h for f in frontier for h in f.hypernyms() + f.instance_hypernyms()]
+                hyp.update(h.name() for h in frontier)
+            if (hyp & names) - _GENERIC_SYNSETS:
+                return "hypernym"
+    return None
+
+
+@functools.lru_cache(maxsize=None)
+def _variant(word: str, gts: Tuple[str, ...]) -> Tuple[Optional[str], Optional[str]]:
+    ws, wh = _sing(word), _head(word)
+    if word in gts:
+        return "exact", word
+    for g in gts:
+        if _sing(g) == ws:
+            return "plural", g
+    single = " " not in word
+    for g in gts:
+        if _head(g) == wh or (single and ws in {_sing(t) for t in re.findall(r"[a-z]+", g)}):
+            return "phrase", g
+    best = (None, None)
+    for g in gts:
+        r = _wordnet_relation(wh, _head(g))
+        if r == "synonym":
+            return "synonym", g
+        if r == "hypernym" and best[0] is None:
+            best = ("hypernym", g)
+    return best
+
+
+def variant_of_gt(word: str, gt_names: List[str]) -> Tuple[Optional[str], Optional[str]]:
+    """How ``word`` relates to the closest name in ``gt_names``: ``exact``,
+    ``plural``, ``phrase`` (shared head noun), ``synonym`` or ``hypernym``
+    (WordNet), else None; with the matched name."""
+    return _variant(word.lower().strip(), tuple(sorted(g.lower().strip() for g in gt_names)))
