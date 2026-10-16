@@ -21,11 +21,11 @@ Prepare the dataset files and model weights locally, then run:
 python demo.py --dataset coco --metric chair --model paligemma --samples 5 --output results/chair-coco.json
 ```
 
-Mirage supports `paligemma`, `qwen2vl`, `gemma4-e4b`, `gemma4-12b`, `ministral3-8b`, `ministral3-14b`, `aya-vision-8b`, and `muse-glimmer-30b`, plus `-think` variants of the Gemma 4 keys for a thinking ablation. See the [documentation](https://mirage-f432d87b.mintlify.app) for dataset setup, metrics, model configuration, and HPC instructions.
+Mirage supports `paligemma`, `qwen2vl`, `gemma4-e4b`, `gemma4-12b`, `ministral3-8b`, `ministral3-14b`, `aya-vision-8b`, and `muse-glimmer-30b`. See the [documentation](https://mirage-f432d87b.mintlify.app) for dataset setup, metrics, model configuration, and HPC instructions.
 
 ## Reference results
 
-Scores are percentages. PaliGemma-3B and Qwen2-VL rows use 1,000 images per dataset; Gemma 4, Ministral 3, Aya Vision, and Muse Glimmer rows use 500 images, a prefix of the same candidate pool. THRONE F1 uses a FLAN-T5-XL evaluator with 38 distractors per ground-truth object and a 1,024-token evaluator input for every row, so captions are judged whole; it supersedes the earlier FLAN-T5-base values and the 512-token values, which trimmed long captions. The THRONE paper counts an object only when nine votes agree (FLAN-T5 Base, Large and XL, three phrasings each); these tables use the XL evaluator alone with its three phrasings. One Qwen2-VL-7B Visual Genome caption of 1,000 was still trimmed at 512 tokens and was not re-judged (effect at most 0.1 points). ROPE strict accuracy is an exact label match after the extractor removes answer formatting (markdown, quotes, "appears to be" lead-ins); every row is scored this way from cached answers. See the [documentation](https://mirage-f432d87b.mintlify.app) for notes on individual models. Higher is better for POPE, ROPE, and THRONE; lower is better for CHAIR-I.
+Scores are percentages from 1,000 images per model and dataset (500 for Gemma 4, Ministral 3, Aya Vision and Muse Glimmer); THRONE F1 uses a FLAN-T5-XL evaluator with a 1,024-token input. Higher is better for POPE, ROPE, and THRONE; lower is better for CHAIR-I.
 
 | Dataset | Model | POPE accuracy ↑ | ROPE strict accuracy ↑ | CHAIR-I hallucination rate ↓ | THRONE F1 ↑ |
 | --- | --- | ---: | ---: | ---: | ---: |
