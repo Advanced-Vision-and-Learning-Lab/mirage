@@ -104,16 +104,3 @@ Each job can use a distinct `MIRAGE_CACHE_DIR`. Cache keys include model identit
 Before using `slurm/demo.slurm` for a full evaluation, edit its `#SBATCH` resource requests and module setup for your cluster. The example requests one GPU, four CPUs, 32 GB of host memory, and four hours. Resource needs depend on the model, metric, image resolution, and sample count. Start with a small pilot and scale the allocation after inspecting GPU memory and run time.
 
 For custom dataset paths, extra model arguments, partitions, account codes, or module commands, edit the script's `python demo.py` command and `#SBATCH` block. Then submit it from the Mirage repository root with `sbatch slurm/demo.slurm`.
-
-## SLURM cells
-
-`slurm/eval_cell.slurm` runs one model, dataset, and metric cell on a SLURM cluster. It requests one A100 40 GB GPU on the `gpu` partition, loads `GCC/13.3.0 Python/3.12.3 CUDA/12.8.0`, activates `venv/` in the repository root, and runs offline (`HF_HUB_OFFLINE=1`), so download weights on a login node first. It reads `MIRAGE_VL_MODEL`, `MIRAGE_DATASET`, `MIRAGE_METRIC`, `MIRAGE_SAMPLES` (default 500), `MIRAGE_CACHE_DIR` (required), and optional `MIRAGE_EXTRA_ARGS`, `MIRAGE_OUTPUT` (default `results/<job name>_<job id>.json`), and `MIRAGE_HF_HOME` (default `huggingface/` in the repository root, which must already hold the weights). The walltime and job name come from `sbatch` options. Set the model's `MIRAGE_*_MODEL_PATH` to a Hugging Face snapshot directory (`.../snapshots/<sha>`) so cache keys record the model revision; with a bare model id the revision is keyed as `unpinned`, and caches written with a snapshot path will not be reused. Download NLTK data (`python -m nltk.downloader stopwords punkt_tab wordnet`) on a login node, because compute nodes are offline.
-
-```bash
-mkdir -p slurm/logs
-MIRAGE_VL_MODEL=qwen2vl MIRAGE_DATASET=coco MIRAGE_METRIC=chair MIRAGE_SAMPLES=500 \
-MIRAGE_CACHE_DIR=$PWD/cache/qwen2vl_coco_captions \
-    sbatch --time=01:30:00 --job-name=qwen2vl_coco_chair slurm/eval_cell.slurm
-```
-
-Give each cell its own cache directory. To score THRONE on the same captions without regenerating them, submit a second cell with the captions cell's `MIRAGE_CACHE_DIR`, `--dependency=afterok:<captions job id>`, and `MIRAGE_EXTRA_ARGS="--cache-only --throne-evaluator <path> --throne-distractor-ratio 38"`. The THRONE evaluator answers are cached in `$MIRAGE_CACHE_DIR/evaluator.sqlite`. To replay a fully cached cell on CPU, add `--partition=short --gres=none`.
