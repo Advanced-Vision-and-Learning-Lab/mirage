@@ -1,8 +1,8 @@
 """Generic wrapper for Hugging Face chat vision-language models.
 
 Covers models whose processor ships a chat template that accepts one image
-and one text turn (Gemma 4, Ministral 3, Aya Vision, Muse Glimmer). Decoding is greedy by
-default and only the newly generated tokens are returned.
+and one text turn (Gemma 4, Ministral 3, Aya Vision, Muse Glimmer). Decoding
+is greedy by default and only the newly generated tokens are returned.
 """
 
 import logging
