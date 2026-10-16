@@ -16,7 +16,7 @@ python demo.py \
   --output results/chair-coco.json
 ```
 
-`--dataset` accepts `coco` or `visual_genome`. `--model` accepts any model key in [Metrics and models](/metrics-and-models#models); if omitted, Mirage reads `MIRAGE_VL_MODEL` and otherwise defaults to `paligemma`. `--samples` sets the number of evaluated images for the selected path.
+`--dataset` accepts `coco` or `visual_genome`. `--model` accepts `paligemma` or `qwen2vl`; if omitted, Mirage reads `MIRAGE_VL_MODEL` and otherwise defaults to `paligemma`. `--samples` sets the number of evaluated images for the selected path.
 
 ## Useful options
 
@@ -24,29 +24,18 @@ python demo.py \
 | --- | --- |
 | `--dataset` | Select `coco` or `visual_genome`. |
 | `--metric` | Select `pope`, `chair`, `rope`, `throne`, `faithscore`, or `nope`. |
-| `--model` | Select a model key, such as `paligemma`, `qwen2vl`, or `gemma4-e4b`. |
+| `--model` | Select `paligemma` or `qwen2vl`. |
 | `--samples` | Set the requested evaluation sample count. |
-| `--pool-size` | Set how many dataset entries are loaded before evaluation. Defaults to 2000 (3000 for COCO ROPE). The pool also fixes the Visual Genome THRONE categories and ROPE prompt classes, so keep it fixed when comparing runs with different `--samples`. |
+| `--pool-size` | Set how many dataset entries are loaded before evaluation. |
 | `--annotations`, `--images` | Override default annotation and image paths. |
 | `--split` | Set the COCO split; defaults to `val2017`. |
-| `--max-new-tokens` | Set caption generation length for CHAIR, THRONE, and FaithScore; defaults to 512. |
-| `--throne-evaluator` | Set the THRONE evaluator model id or local path; defaults to `MIRAGE_THRONE_EVALUATOR_MODEL`, else `google/flan-t5-base`. |
-| `--throne-distractor-ratio` | Ask THRONE about each image's ground-truth objects plus this many distractor objects per ground-truth object, instead of the full vocabulary. Defaults to `MIRAGE_THRONE_DISTRACTOR_RATIO`. |
-| `--cache-only` | Serve every prediction from the response cache and fail on the first miss instead of loading the model. Use it to rescore cached captions with another metric. |
+| `--max-new-tokens` | Set caption generation length for applicable metrics. |
 | `--pope-questions` | Set POPE questions per image; defaults to 6. |
 | `--output` | Write the formatted result as JSON. |
 | `--nope-turn2`, `--nope-turn1` | Provide the pre-generated NOPE response JSON inputs. |
 | `--llama-model` | Set the local LLaMA model path required by FaithScore. |
 
 The complete option list is available through `python demo.py --help`.
-
-## Evaluation protocol
-
-Images are taken in annotation order from the candidate pool, skipping images without object annotations (and, for ROPE, images with fewer than five boxes), until `--samples` images are evaluated. Because the pool is fixed, a smaller run evaluates a prefix of a larger one.
-
-COCO and Visual Genome captions use different prompts (`CAPTION_PROMPT` and `VG_CAPTION_PROMPT` in `demo.py`). Visual Genome CHAIR drops stopwords, colours, and other non-object strings from the object vocabulary, and Visual Genome ROPE prompts list only the classes that appear in the pool's ROPE boxes.
-
-The JSON result includes `cache_stats` with prediction-cache hits and misses.
 
 ## Special case: NOPE
 
@@ -62,4 +51,4 @@ python demo.py \
   --output results/nope.json
 ```
 
-The example SLURM job is `slurm/demo.slurm`. Submit it from the repository root with `sbatch slurm/demo.slurm`, after adapting module setup and resource requests for the target cluster. It supports dataset, metric, model, sample count, and output overrides through `MIRAGE_*` environment variables. For a SLURM cluster, `slurm/eval_cell.slurm` runs one cell per job; see [HPC](/hpc).
+The example SLURM job is `slurm/demo.slurm`. Submit it from the repository root with `sbatch slurm/demo.slurm`, after adapting module setup and resource requests for the target cluster. It supports dataset, metric, model, sample count, and output overrides through `MIRAGE_*` environment variables.

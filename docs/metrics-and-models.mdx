@@ -9,10 +9,10 @@ The demo exposes these metric choices:
 
 | Metric | What the implementation evaluates | Notes |
 | --- | --- | --- |
-| CHAIR | Object mentions in generated image captions against annotated objects. | Uses COCO synonym handling for COCO; Visual Genome uses its object names without stopwords, colours, and other non-object strings. |
+| CHAIR | Object mentions in generated image captions against annotated objects. | Uses COCO synonym handling for COCO; Visual Genome uses its object names. |
 | POPE | Yes/no answers to questions about objects present or absent in an image. | The demo uses random negative-object sampling by default. |
-| ROPE | Object recognition for numbered, boxed image regions. | The demo uses five boxes and asks the model to identify each region. Before the strict exact-label match, the extractor removes markdown, quotes, parenthetical asides, and lead-ins such as "The object inside box 1 appears to be". |
-| THRONE | Caption object predictions against the dataset's object categories. | Uses the loaded dataset's category or object-name list. Choose the evaluator with `--throne-evaluator` and limit questions to ground-truth objects plus sampled distractors with `--throne-distractor-ratio`. |
+| ROPE | Object recognition for numbered, boxed image regions. | The demo uses five boxes and asks the model to identify each region. |
+| THRONE | Caption object predictions against the dataset's object categories. | Uses the loaded dataset's category or object-name list. |
 | FaithScore | Faithfulness checks on generated captions. | Requires a local LLaMA model path via `--llama-model` or `MIRAGE_LLAMA_MODEL_PATH`, plus a PaliGemma verification model. |
 | NOPE | Scores responses to the NOPE question set. | Requires pre-generated Turn 2 responses via `--nope-turn2`; Turn 1 input is optional. |
 
@@ -20,20 +20,10 @@ Metric availability can depend on the dataset path and local files. For example,
 
 ## Models
 
-The prediction factory supports these local vision-language models:
+The prediction factory supports two local vision-language model wrappers:
 
-| Key | Default checkpoint | Path override |
-| --- | --- | --- |
-| `paligemma` | `google/paligemma-3b-mix-224` | `MIRAGE_PALIGEMMA_MODEL_PATH` |
-| `qwen2vl` | `Qwen/Qwen2-VL-2B-Instruct` | `MIRAGE_QWEN_MODEL_PATH` |
-| `gemma4-e4b` | `google/gemma-4-E4B-it` | `MIRAGE_GEMMA4_E4B_MODEL_PATH` |
-| `gemma4-12b` | `google/gemma-4-12B-it` | `MIRAGE_GEMMA4_12B_MODEL_PATH` |
-| `ministral3-8b` | `mistralai/Ministral-3-8B-Instruct-2512-BF16` | `MIRAGE_MINISTRAL3_8B_MODEL_PATH` |
-| `ministral3-14b` | `mistralai/Ministral-3-14B-Instruct-2512-BF16` | `MIRAGE_MINISTRAL3_14B_MODEL_PATH` |
-| `aya-vision-8b` | `CohereLabs/aya-vision-8b` | `MIRAGE_AYA_VISION_8B_MODEL_PATH` |
-| `gemma4-e4b-think`, `gemma4-12b-think` | Same as the Gemma 4 keys, thinking on | Same as the Gemma 4 keys |
-
-The Gemma 4, Ministral 3, and Aya Vision keys share one wrapper, `models/hf_chat_vlm.py`. It sends one image and one text turn through the processor's chat template, decodes only the new tokens, and runs with thinking disabled (`enable_thinking=False`). The `gemma4-e4b-think` and `gemma4-12b-think` keys load the same Gemma 4 checkpoints with thinking enabled. They add 1,024 tokens to each metric's `max_new_tokens`, shared by the thought and the answer, and drop the thought before scoring. If the thought does not close within that budget, the wrapper logs a warning and returns the truncated thought as the response, and the metric parses it like any other answer. Aya Vision is a gated, non-commercial (CC-BY-NC) checkpoint; accept its license on Hugging Face before downloading it.
+- `paligemma` uses `google/paligemma-3b-mix-224` by default. Override the model identifier or local path with `MIRAGE_PALIGEMMA_MODEL_PATH`.
+- `qwen2vl` uses `Qwen/Qwen2-VL-2B-Instruct` by default. Override it with `MIRAGE_QWEN_MODEL_PATH`.
 
 These are the model keys currently supported by `demo.py`. A different checkpoint can be used through the model-path override only when it is compatible with that wrapper. DeepSeek-VL is not currently supported; adding it requires a model wrapper and factory registration before it can be selected as a separate model key. See [Maintain the docs](/maintaining-docs) for the implementation handoff requirements.
 
