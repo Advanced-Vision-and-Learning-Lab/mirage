@@ -13,7 +13,7 @@ This guide covers a first GPU run and repeatable model comparisons on a SLURM cl
 - The model weights already available in the Hugging Face cache or on cluster storage. Nodes without internet access cannot download weights during the job.
 - A GPU allocation sized for the selected checkpoint and evaluation. The sample SLURM request is a starting point, not a guarantee that a model fits.
 
-The repository exposes `paligemma`, `qwen2vl`, `gemma4-e4b`, `gemma4-12b`, `ministral3-8b`, `ministral3-14b`, `aya-vision-8b`, and `muse-glimmer-30b` to `demo.py`, plus `gemma4-e4b-think` and `gemma4-12b-think` for a thinking ablation. See [Metrics and models](/metrics-and-models) for checkpoint defaults and overrides. The Gemma 4, Ministral 3, and Aya Vision keys were tested on A100 40 GB GPUs with `transformers==5.19.0`, `torch==2.9.1` (CUDA 12.8), and `mistral-common==1.12.0`, as pinned in `requirements.txt`. `muse-glimmer-30b` was tested with the same packages at checkpoint revision `a4e59da52a7bc87ae7251dd5545c0dd437c44b68`; its bf16 weights (about 60 GB) need two A100 40 GB GPUs on one node, with about 30 GB used on each. DeepSeek-VL is not currently implemented as a Mirage model backend, so it cannot be selected with `--model` or `MIRAGE_VL_MODEL`.
+The repository currently exposes `paligemma` and `qwen2vl` to `demo.py`. See [Metrics and models](/metrics-and-models) for checkpoint defaults and overrides. DeepSeek-VL is not currently implemented as a Mirage model backend, so it cannot be selected with `--model` or `MIRAGE_VL_MODEL`.
 
 ## Clone and prepare the environment
 
@@ -104,16 +104,3 @@ Each job can use a distinct `MIRAGE_CACHE_DIR`. Cache keys include model identit
 Before using `slurm/demo.slurm` for a full evaluation, edit its `#SBATCH` resource requests and module setup for your cluster. The example requests one GPU, four CPUs, 32 GB of host memory, and four hours. Resource needs depend on the model, metric, image resolution, and sample count. Start with a small pilot and scale the allocation after inspecting GPU memory and run time.
 
 For custom dataset paths, extra model arguments, partitions, account codes, or module commands, edit the script's `python demo.py` command and `#SBATCH` block. Then submit it from the Mirage repository root with `sbatch slurm/demo.slurm`.
-
-## SLURM cells
-
-`slurm/eval_cell.slurm` runs one model, dataset, and metric cell on a SLURM cluster. It requests one A100 40 GB GPU on the `gpu` partition, loads `GCC/13.3.0 Python/3.12.3 CUDA/12.8.0`, activates `venv/` in the repository root, and runs offline (`HF_HUB_OFFLINE=1`), so download weights on a login node first. It reads `MIRAGE_VL_MODEL`, `MIRAGE_DATASET`, `MIRAGE_METRIC`, `MIRAGE_SAMPLES` (default 500), `MIRAGE_CACHE_DIR` (required), and optional `MIRAGE_EXTRA_ARGS`, `MIRAGE_OUTPUT` (default `results/<job name>_<job id>.json`), and `MIRAGE_HF_HOME` (default `huggingface/` in the repository root, which must already hold the weights). The walltime and job name come from `sbatch` options. Set the model's `MIRAGE_*_MODEL_PATH` to a Hugging Face snapshot directory (`.../snapshots/<sha>`) so cache keys record the model revision; with a bare model id the revision is keyed as `unpinned`, and caches written with a snapshot path will not be reused. Download NLTK data (`python -m nltk.downloader stopwords punkt_tab wordnet`) on a login node, because compute nodes are offline.
-
-```bash
-mkdir -p slurm/logs
-MIRAGE_VL_MODEL=qwen2vl MIRAGE_DATASET=coco MIRAGE_METRIC=chair MIRAGE_SAMPLES=500 \
-MIRAGE_CACHE_DIR=$PWD/cache/qwen2vl_coco_captions \
-    sbatch --time=01:30:00 --job-name=qwen2vl_coco_chair slurm/eval_cell.slurm
-```
-
-Give each cell its own cache directory. To score THRONE on the same captions without regenerating them, submit a second cell with the captions cell's `MIRAGE_CACHE_DIR`, `--dependency=afterok:<captions job id>`, and `MIRAGE_EXTRA_ARGS="--cache-only --throne-evaluator <path> --throne-distractor-ratio 38 --throne-evaluator-max-tokens 1024"`. The THRONE evaluator answers are cached in `$MIRAGE_CACHE_DIR/evaluator.sqlite`. To replay a fully cached cell on CPU, add `--partition=short --gres=none`. For `muse-glimmer-30b`, add `--gres=gpu:a100:2 --cpus-per-task=8 --mem=96G`; the wrapper spreads the weights across both GPUs.

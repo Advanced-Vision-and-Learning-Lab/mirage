@@ -1,19 +1,19 @@
-model,dataset,mod_pope_balanced_accuracy,mod_rope_accuracy,mod_chair_f05,throne_f05
-Muse-Glimmer-30B,COCO,0.919,0.700,0.892,0.825
-Gemma-4-12B,COCO,0.926,0.748,0.842,0.790
-Gemma-4-E4B,COCO,0.939,0.577,0.832,0.780
-Aya-Vision-8B,COCO,0.956,0.592,0.842,0.788
-Ministral-3-14B,COCO,0.866,0.363,0.829,0.782
-Ministral-3-8B,COCO,0.864,0.266,0.820,0.786
-Qwen2-VL-7B,COCO,0.931,0.381,0.851,0.821
-Qwen2-VL-2B,COCO,0.931,0.107,0.848,0.829
-PaliGemma-3B,COCO,0.940,0.414,0.817,0.787
-Muse-Glimmer-30B,Visual Genome,0.907,0.644,0.796,0.739
-Gemma-4-12B,Visual Genome,0.936,0.655,0.705,0.714
-Gemma-4-E4B,Visual Genome,0.928,0.489,0.638,0.689
-Aya-Vision-8B,Visual Genome,0.920,0.462,0.738,0.717
-Ministral-3-14B,Visual Genome,0.858,0.358,0.693,0.691
-Ministral-3-8B,Visual Genome,0.873,0.247,0.708,0.685
-Qwen2-VL-7B,Visual Genome,0.926,0.506,0.436,0.659
-Qwen2-VL-2B,Visual Genome,0.916,0.438,0.498,0.687
-PaliGemma-3B,Visual Genome,0.920,0.270,0.500,0.630
+model,dataset,pope_accuracy,rope_strict_accuracy,chair_instance_hallucination_rate,throne_f1
+PaliGemma-3B,COCO,0.942,0.216,0.091,0.809
+PaliGemma-3B,Visual Genome,0.880,0.082,0.678,0.276
+Qwen2-VL-2B,COCO,0.936,0.037,0.128,0.840
+Qwen2-VL-2B,Visual Genome,0.887,0.086,0.756,0.274
+Qwen2-VL-7B,COCO,0.935,0.138,0.127,0.845
+Qwen2-VL-7B,Visual Genome,0.895,0.111,0.693,0.272
+Gemma-4-E4B,COCO,0.935,0.309,0.125,0.787
+Gemma-4-E4B,Visual Genome,0.896,0.095,0.841,0.255
+Ministral-3-8B,COCO,0.881,0.110,0.137,0.810
+Ministral-3-8B,Visual Genome,0.846,0.036,0.877,0.264
+Aya-Vision-8B,COCO,0.955,0.250,0.169,0.832
+Aya-Vision-8B,Visual Genome,0.881,0.091,0.856,0.268
+Gemma-4-12B,COCO,0.930,0.445,0.152,0.789
+Gemma-4-12B,Visual Genome,0.904,0.214,0.768,0.271
+Ministral-3-14B,COCO,0.882,0.127,0.141,0.823
+Ministral-3-14B,Visual Genome,0.839,0.042,0.866,0.266
+Muse-Glimmer-30B,COCO,0.927,0.121,0.171,0.839
+Muse-Glimmer-30B,Visual Genome,0.886,0.063,0.817,0.279

@@ -10,10 +10,10 @@ ROOT = Path(__file__).resolve().parents[1]
 CSV_PATH = ROOT / "docs" / "model-results.csv"
 DISPLAY_PATHS = (ROOT / "docs" / "index.mdx", ROOT / "README.md")
 METRICS = (
-    "mod_pope_balanced_accuracy",
-    "mod_rope_accuracy",
-    "mod_chair_f05",
-    "throne_f05",
+    "pope_accuracy",
+    "rope_strict_accuracy",
+    "chair_instance_hallucination_rate",
+    "throne_f1",
 )
 
 
