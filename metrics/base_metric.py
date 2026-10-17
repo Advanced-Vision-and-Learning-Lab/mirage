@@ -1,7 +1,6 @@
 from abc import ABC
 from types import MappingProxyType
-from typing import Dict, List, Any, Mapping, Tuple, Union, Optional
-import numpy as np
+from typing import Dict, List, Any, Mapping, Tuple
 
 SAMPLES = 500  # images scored per cell: run.py --samples default
 BETA2 = 0.25  # F-beta weight: beta = 0.5 favours precision

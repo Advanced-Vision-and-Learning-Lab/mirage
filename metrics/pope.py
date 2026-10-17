@@ -2,7 +2,6 @@ import random
 import re
 from types import MappingProxyType
 from typing import Dict, Iterable, List, Any, Tuple, Optional
-import numpy as np
 from collections import Counter
 
 from .base_metric import SAMPLES, BaseMetric, ground_truth, object_names
