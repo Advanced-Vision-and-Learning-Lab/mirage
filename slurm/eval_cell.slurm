@@ -13,6 +13,10 @@
 # Set MIRAGE_<KEY>_MODEL_PATH to an HF snapshot path (.../snapshots/<sha>) so cache
 # keys pin the model revision; a bare model id is keyed as "unpinned".
 # CPU-only cache replays: sbatch --partition=short --gres=none ...
+# The judged block of POPE/ROPE/CHAIR/THRONE needs, before any generation (else the cell
+# aborts): judgments/ matching judge/manifest.json; NLTK punkt_tab and
+# averaged_perceptron_tagger_eng (ROPE, CHAIR, VG THRONE), wordnet (CHAIR, VG THRONE) and
+# stopwords (VG); datasets/coco/annotations/captions_val2017.json (COCO CHAIR).
 # Create slurm/logs/ before the first submission.
 
 #SBATCH --job-name=mirage-cell
