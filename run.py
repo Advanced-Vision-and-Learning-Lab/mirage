@@ -71,14 +71,13 @@ def _load_dataset(args):
 
 
 def _run_dataset_metric(args):
-    from predict.cache import SQLiteResponseCache
     from predict.factory import build_predictor
 
     loader, all_objects = _load_dataset(args)
     if not len(loader):
         raise RuntimeError("No images were loaded. Check the annotation and image paths.")
     # --cache-only opens the prediction cache read-only: a replay never writes to it, and a miss raises.
-    model = build_predictor(args.model, cache=SQLiteResponseCache(readonly=True) if args.cache_only else None)
+    model = build_predictor(args.model, cache_only=args.cache_only)
     if not args.cache_only:
         model.load_model()
     try:
@@ -127,11 +126,11 @@ def _evaluate(args, model, loader, all_objects):
 
         if not args.llama_model:
             raise ValueError("FaithScore needs --llama-model or MIRAGE_LLAMA_MODEL_PATH.")
-        from models.paligemma import PaligemmaModel
+        from predict.factory import build_model
 
         scored, captions = caption_images(loader, model, args.samples, gen)
         image_paths = [str(s.get("image_path") or loader.images_path / s["image_filename"]) for s in scored]
-        verifier = PaligemmaModel(model_name=os.getenv("MIRAGE_PALIGEMMA_MODEL_PATH", "google/paligemma-3b-mix-224"))
+        verifier = build_model("paligemma")
         verifier.load_model()
         try:
             metric = FaithScoreMetric(llama_path=args.llama_model, verification_model=verifier,
