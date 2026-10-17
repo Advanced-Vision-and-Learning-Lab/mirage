@@ -15,6 +15,7 @@ class POPEMetric(BaseMetric):
     """
 
     MODES = ["random", "popular"]
+    GEN = {"max_new_tokens": 10, "do_sample": False}
 
     def __init__(self,
                  mode: str = "random",
