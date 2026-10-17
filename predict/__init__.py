@@ -2,7 +2,7 @@
 
 Architecture::
 
-    Experiment Driver -> Predictor -> { SQLite cache | LocalModelBackend | future APIBackend }
+    Experiment Driver -> Predictor -> { SQLite cache | LocalModelBackend | CallableBackend }
 
 Torch-free at import time so offline scripts can use the cache without a
 GPU environment. Bump :data:`CACHE_KEY_VERSION` (in ``predict.identity``)

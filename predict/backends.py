@@ -4,9 +4,8 @@ Routing is decided by which backend the Predictor is constructed with —
 never by branching inside the Predictor and never inside ``BaseModel``.
 A backend provides: ``generate``, ``identity()``,
 ``merged_generation_config(kwargs)``, ``load``/``unload``, ``is_loaded``,
-and ``model_name``. A future API backend implements the same surface with
-an identity like ``{"provider": "gemini", "model_id": "models/gemini-2.5-flash"}``;
-``BaseModel`` keeps sole responsibility for local loading and generation.
+and ``model_name``. ``BaseModel`` keeps sole responsibility for local
+loading and generation.
 """
 
 from typing import Any, Callable, Dict, List, Optional

@@ -70,6 +70,10 @@ class Predictor:
             self.stats["hits"] += 1
             return cached
 
+        if self.cache.readonly and not (self.backend.is_loaded or self._load_requested):
+            raise RuntimeError(f"cache miss in cache-only mode (model never loaded): "
+                               f"{identity.get('model_id')} revision {identity.get('revision')} "
+                               f"not in {self.cache.db_path}")
         self._ensure_backend_loaded()
         response = self.backend.generate(prompt, image=image, **generation_kwargs)
         self.stats["misses"] += 1

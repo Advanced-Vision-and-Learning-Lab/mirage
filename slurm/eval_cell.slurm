@@ -2,7 +2,7 @@
 # One evaluation cell (model x dataset x metric). Fill in the <...> placeholders for your cluster.
 # Settings come from the environment, so a launcher can submit many cells:
 #
-#   MIRAGE_VL_MODEL=qwen2vl MIRAGE_DATASET=coco MIRAGE_METRIC=pope MIRAGE_SAMPLES=500 \
+#   MIRAGE_VL_MODEL=qwen2vl-2b MIRAGE_DATASET=coco MIRAGE_METRIC=pope MIRAGE_SAMPLES=500 \
 #   MIRAGE_CACHE_DIR=$PWD/cache/qwen2vl_coco_pope \
 #       sbatch --time=01:00:00 --job-name=qwen2vl_coco_pope slurm/eval_cell.slurm
 #

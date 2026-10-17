@@ -51,8 +51,7 @@ class HFChatVLM(BaseModel):
         torch_dtype: Optional[torch.dtype] = None,
         **kwargs,
     ):
-        super().__init__(model_name, model_type="local", **kwargs)
-        self.supports_images = True
+        super().__init__(model_name, **kwargs)
         self.enable_thinking = enable_thinking
         self.thinking_tokens = thinking_tokens if enable_thinking else 0
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")

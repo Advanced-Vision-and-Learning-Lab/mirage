@@ -7,11 +7,11 @@ reasoning about images and text with strong multilingual capabilities.
 """
 
 import torch
-from typing import Any, Dict, Optional, Union, Literal
+from typing import Any, Dict, Optional, Union
 from pathlib import Path
 from PIL import Image
 
-from .base import BaseModel, ModelLoadError, InvalidInputError
+from .base import BaseModel, ModelLoadError, ModelNotLoadedError
 
 
 class Qwen2VLModel(BaseModel):
@@ -42,8 +42,6 @@ class Qwen2VLModel(BaseModel):
         model_name: str = "Qwen/Qwen2-VL-2B-Instruct",
         device: Optional[str] = None,
         torch_dtype: Optional[torch.dtype] = None,
-        quantization: Optional[Literal["int4", "int8", "none"]] = None,
-        quantization_backend: str = "torchao",
         **kwargs
     ):
         """
@@ -53,21 +51,9 @@ class Qwen2VLModel(BaseModel):
             model_name: HuggingFace model identifier for Qwen2-VL (default: Qwen2-VL-2B-Instruct)
             device: Device to load model on ('cuda', 'cpu', or None for auto)
             torch_dtype: PyTorch data type for model weights (default: bfloat16)
-            quantization: Quantization method ('int4', 'int8', 'none', or None)
-            quantization_backend: Backend for quantization ('torchao' or 'bitsandbytes')
             **kwargs: Additional arguments passed to base class
         """
-        super().__init__(
-            model_name,
-            model_type="local",
-            quantization=quantization,
-            **kwargs
-        )
-
-        # Set model capabilities
-        self.supports_images = True
-        self.supports_text = True
-        self.max_tokens = 32768  # Qwen2-VL supports longer contexts
+        super().__init__(model_name, **kwargs)
 
         # Model-specific attributes
         self.model = None
@@ -76,7 +62,6 @@ class Qwen2VLModel(BaseModel):
             device = "cuda" if torch.cuda.is_available() else "cpu"
         self.device = device
         self.torch_dtype = torch_dtype or torch.bfloat16
-        self.quantization_backend = quantization_backend
 
         # Update config with Qwen2-VL-specific defaults
         default_config = {
@@ -96,8 +81,7 @@ class Qwen2VLModel(BaseModel):
         Load the Qwen2-VL model and processor.
 
         This method loads the model from HuggingFace Hub and prepares it
-        for inference. It handles device placement, dtype conversion, and
-        configurable quantization.
+        for inference. It handles device placement and dtype conversion.
 
         Raises:
             ModelLoadError: If model loading fails
@@ -113,19 +97,11 @@ class Qwen2VLModel(BaseModel):
                 trust_remote_code=True
             )
 
-            # Get quantization config from base class helper
-            quantization_config = self.get_quantization_config(self.quantization_backend)
-
             # Prepare model loading arguments
             model_kwargs = {
                 "torch_dtype": self.torch_dtype,
                 "trust_remote_code": True,
             }
-
-            # Add quantization config if specified
-            if quantization_config is not None:
-                model_kwargs["quantization_config"] = quantization_config
-                self._logger.info(f"Loading with {self.quantization} quantization using {self.quantization_backend}")
 
             # Handle device placement
             if self.device != "cpu" and self.device is not None:
@@ -201,36 +177,28 @@ class Qwen2VLModel(BaseModel):
 
         Raises:
             ModelNotLoadedError: If model is not loaded
-            InvalidInputError: If inputs are invalid
         """
-        # Validate inputs
-        is_valid, error_msg = self.validate_input(prompt, image)
-        if not is_valid:
-            raise InvalidInputError(error_msg)
+        if not self.is_loaded:
+            raise ModelNotLoadedError("Call load_model() before generate().")
 
-        try:
-            # Prepare inputs with Qwen2-VL's conversation format
-            inputs = self._prepare_inputs(prompt, image)
+        # Prepare inputs with Qwen2-VL's conversation format
+        inputs = self._prepare_inputs(prompt, image)
 
-            # Merge generation config
-            generation_config = self.config.copy()
-            generation_config.update(kwargs)
+        # Merge generation config
+        generation_config = self.config.copy()
+        generation_config.update(kwargs)
 
-            # Generate response using helper
-            outputs = self._generate_with_config(inputs, generation_config)
+        # Generate response using helper
+        outputs = self._generate_with_config(inputs, generation_config)
 
-            # Decode response (Qwen2-VL includes the input in output, so we skip it)
-            input_len = inputs["input_ids"].shape[1]
-            response = self.processor.decode(
-                outputs[0][input_len:],
-                skip_special_tokens=True
-            )
+        # Decode response (Qwen2-VL includes the input in output, so we skip it)
+        input_len = inputs["input_ids"].shape[1]
+        response = self.processor.decode(
+            outputs[0][input_len:],
+            skip_special_tokens=True
+        )
 
-            return response.strip()
-
-        except Exception as e:
-            self._logger.error(f"Generation failed: {e}")
-            raise InvalidInputError(f"Failed to generate response: {e}")
+        return response.strip()
 
     def _generate_with_config(
         self,
