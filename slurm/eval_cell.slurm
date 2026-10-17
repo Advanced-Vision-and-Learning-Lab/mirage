@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One evaluation cell (model x dataset x metric).
+# One evaluation cell (model x dataset x metric). Fill in the <...> placeholders for your cluster.
 # Settings come from the environment, so a launcher can submit many cells:
 #
 #   MIRAGE_VL_MODEL=qwen2vl MIRAGE_DATASET=coco MIRAGE_METRIC=pope MIRAGE_SAMPLES=500 \
@@ -11,13 +11,13 @@
 # pass MIRAGE_EXTRA_ARGS="--cache-only" so a caption miss fails instead of regenerating.
 # Set MIRAGE_<KEY>_MODEL_PATH to an HF snapshot path (.../snapshots/<sha>) so cache
 # keys pin the model revision; a bare model id is keyed as "unpinned".
-# CPU-only cache replays: sbatch --partition=short --gres=none ...
+# CPU-only cache replays: sbatch --partition=<cpu-partition> --gres=none ...
 # Create slurm/logs/ before the first submission.
 
 #SBATCH --job-name=mirage-cell
 #SBATCH --account=<your-account>
-#SBATCH --partition=gpu
-#SBATCH --gres=gpu:a100:1
+#SBATCH --partition=<gpu-partition>
+#SBATCH --gres=gpu:1
 #SBATCH --time=01:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -30,7 +30,8 @@ set -euo pipefail
 PROJECT_ROOT="${MIRAGE_PROJECT_ROOT:-${SLURM_SUBMIT_DIR:-$PWD}}"
 cd "${PROJECT_ROOT}"
 
-module load GCC/13.3.0 Python/3.12.3 CUDA/12.8.0
+# Load your cluster's Python and CUDA modules, if needed:
+# module load <python> <cuda>
 source "${PROJECT_ROOT}/venv/bin/activate"
 
 export HF_HOME="${MIRAGE_HF_HOME:-${PROJECT_ROOT}/huggingface}"
