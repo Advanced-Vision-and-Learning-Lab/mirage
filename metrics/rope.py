@@ -5,10 +5,10 @@ Adapted from the sled-group/moh repository:
   https://github.com/sled-group/moh
 
 ROPE evaluates multi-object hallucination in Vision-Language Models by drawing
-red bounding boxes around N objects in an image and asking the model to identify
-all N objects in a single prompt. This contrasts with POPE's binary yes/no
-questioning and tests whether VLMs can correctly ground and classify multiple
-objects simultaneously.
+red bounding boxes around N objects in an image and asking the model to name
+the object in each numbered box, one question per box. This contrasts with
+POPE's binary yes/no questioning and tests whether VLMs can correctly ground
+and classify multiple objects in the same image.
 
 Reference:
     Zou et al., "Look, Compare, Decide: Alleviating Hallucination in Large
@@ -80,7 +80,7 @@ class ROPEMetric(BaseMetric):
         self.bbox_color = bbox_color
         self.bbox_width = bbox_width
 
-        # Accumulated state across evaluate() calls
+        # Accumulated state across evaluate_predictions() calls
         self._all_predictions: List[List[str]] = []
         self._all_ground_truth: List[List[str]] = []
 
@@ -92,8 +92,8 @@ class ROPEMetric(BaseMetric):
         """
         Draw numbered red bounding boxes on a copy of the image.
 
-        Each box is labeled with its 1-based index (1, 2, 3, ...) so the model
-        can match the visual box number to the obj1/obj2/... output format.
+        Each box is labeled with its 1-based index (1, 2, 3, ...), matching
+        the "box i" in the per-box prompts.
 
         Adapted from bbox rendering logic in sled-group/moh evaluation pipeline.
 
@@ -219,11 +219,7 @@ class ROPEMetric(BaseMetric):
 
     def generate_prompt_for_box(self, box_index: int) -> str:
         """
-        Generate a single-box identification prompt for PaliGemma with few-shot examples.
-
-        Keeps the prompt short and direct. PaliGemma performs better with a
-        simple, focused question than with long class lists or few-shot examples
-        that can anchor completions to the example answers.
+        The single-box ROPE question; its bytes are part of the cache key.
 
         Args:
             box_index: 1-based index of the bounding box to ask about.
