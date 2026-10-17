@@ -8,6 +8,8 @@ item raises :class:`MissingVerdicts`. The literals below (500 images, pools of 2
 metrics' defaults.
 
     python repro.py --root /path/to/mirage-tree --check            # Python 3.12+; exit 1 on any difference
+    python repro.py --root /path/to/mirage-tree --export-records tests/data/records.json.gz
+    python repro.py --records tests/data/records.json.gz --check   # the same check without the tree
     python repro.py --root /path/to/mirage-tree --export-committee judgments/committee.json
     python repro.py --table judgments/final_tables.json --csv model-results.csv
 
@@ -17,6 +19,7 @@ in the reference runs (see ``MODELS`` and the ``*_path`` helpers).
 
 import argparse
 import csv
+import gzip
 import json
 from collections import Counter
 from pathlib import Path
@@ -80,14 +83,12 @@ def _rows(path: Path):
     return rows
 
 
-def pope_records(root: Path, ds: str) -> Dict[str, List[Tuple[str, str, bool, bool]]]:
-    from metrics.pope import QUESTION_RE, POPEMetric
+def pope_records(root: Path, ds: str, samples: List[Dict], loader) -> Dict[str, List[Tuple[str, str, bool, str]]]:
+    """Per model, ``(image_id, object, label, reply)`` for the POPE questions on ``samples``."""
+    from metrics.pope import QUESTION_RE
     from predict.identity import hash_image
 
-    loader = _loader(root, ds, 2000)
-    samples = [s for s in loader if s.get("categories")][:N_IMAGES]
     images = {hash_image(loader.load_image(s)): (str(s["image_id"]), set(s["categories"])) for s in samples}
-    pope = POPEMetric(mode="random", num_questions_per_image=6)
     out = {}
     for model in MODELS:
         recs = []
@@ -95,13 +96,14 @@ def pope_records(root: Path, ds: str) -> Dict[str, List[Tuple[str, str, bool, bo
             m = QUESTION_RE.search(prompt)
             if image_hash in images and m:
                 iid, cats = images[image_hash]
-                recs.append((iid, m.group(1), m.group(1) in cats, pope.process_response(resp)))
+                recs.append((iid, m.group(1), m.group(1) in cats, resp))
         out[model] = recs
     return out
 
 
-def rope_records(root: Path, ds: str) -> Dict[str, List[Tuple[str, int, str, bool]]]:
-    from metrics.rope import ROPEMetric, judged_answer
+def rope_records(root: Path, ds: str) -> Dict[str, List[Tuple[str, int, str, str]]]:
+    """Per model, ``(item, box, ground-truth name, reply)`` for the first ``N_IMAGES`` ROPE images."""
+    from metrics.rope import ROPEMetric
     from predict.identity import hash_image
 
     loader = _loader(root, ds, 3000 if ds == "coco" else 2000)
@@ -116,60 +118,81 @@ def rope_records(root: Path, ds: str) -> Dict[str, List[Tuple[str, int, str, boo
     out = {}
     for model in MODELS:
         got = {(h, p): r for p, h, r in _rows(cache_path(root, model, ds, "rope")) if h in want}
-        recs = []
-        for item, b, gt, h in questions:
-            resp = got.get((h, rope.generate_prompt_for_box(b)))
-            if resp is not None:
-                pred = rope.parse_single_response(resp)
-                recs.append((item, b, judged_answer(resp, pred), rope.strict(pred, gt)))
-        out[model] = recs
+        out[model] = [(item, b, gt, got[(h, rope.generate_prompt_for_box(b))]) for item, b, gt, h in questions
+                      if (h, rope.generate_prompt_for_box(b)) in got]
     return out
 
 
-def mention_records(root: Path, ds: str) -> Tuple[List[Dict], Dict[str, set]]:
-    """Tagged caption mentions per image and model, and COCO reference-caption objects."""
-    from metrics.chair import ChairMetric
+def load_records(root: Path) -> Dict[str, Dict]:
+    """Everything scoring reads from ``root``, per dataset, as JSON-ready data: the model replies
+    joined to their items (the only step that needs the images), the captions with their THRONE
+    evaluator outputs, COCO's reference captions and the Visual Genome pool's object names.
+    :func:`rebuild` scores it; ``--export-records`` writes it."""
+    out = {}
+    for ds in DATASETS:
+        loader = _loader(root, ds, 2000)
+        samples = [s for s in loader if s.get("categories")][:N_IMAGES]
+        caps = {m: json.load(open(captions_path(root, m, ds)))["caption_details"][:N_IMAGES] for m in MODELS}
+        images = [{"item": f"{ds}_{s['image_id']}", "gt": list(s["categories"]),
+                   "captions": {m: c[i]["caption"] for m, c in caps.items()}} for i, s in enumerate(samples)]
+        throne = {}
+        for model in MODELS:
+            details = json.load(open(throne_path(root, model, ds)))["per_image_details"][:N_IMAGES]
+            if any(d["caption"] != img["captions"][model] for d, img in zip(details, images)):
+                raise ValueError(f"{model} {ds}: THRONE captions are not aligned with the caption run")
+            # rebuild() puts the caption back from "images"
+            throne[model] = [{k: d[k] for k in ("gt_objects", "predicted_objects", "disqualified_objects")}
+                             for d in details]
+        rec = {"pope": pope_records(root, ds, samples, loader), "rope": rope_records(root, ds),
+               "images": images, "throne": throne}
+        if ds == "vg":
+            rec["object_names"] = loader.get_object_names()
+        else:
+            items = {img["item"] for img in images}
+            rec["references"] = [a for a in json.load(open(root / "datasets/coco/annotations/captions_val2017.json"))
+                                 ["annotations"] if f"coco_{a['image_id']}" in items]
+        out[ds] = rec
+    return out
 
-    loader = _loader(root, ds, 2000)
-    chair = ChairMetric.for_dataset(ds, loader)
-    samples = [s for s in loader if s.get("categories")][:N_IMAGES]
-    caps = {m: json.load(open(captions_path(root, m, ds)))["caption_details"][:N_IMAGES] for m in MODELS}
-    images = []
-    for i, s in enumerate(samples):
-        gt = list(s["categories"])
-        images.append({"item": f"{ds}_{s['image_id']}", "gt": gt, "models": {
-            m: {"caption": c[i]["caption"], "mentions": chair.tag_mentions(c[i]["caption"], gt)} for m, c in caps.items()}})
-    if ds != "coco":
-        return images, {}
-    return images, chair.reference_objects(root / "datasets/coco/annotations/captions_val2017.json", images)
 
+def rebuild(records: Dict[str, Dict], store: Optional[VerdictStore] = None) -> Tuple[Dict[str, Dict], Dict]:
+    """The published table and committee.json, scored from ``records`` (see :func:`load_records`)
+    with verdicts from ``store`` (default :meth:`VerdictStore.open`)."""
+    from types import SimpleNamespace
 
-def build_table(root: Path, store: Optional[VerdictStore] = None) -> Dict[str, Dict]:
-    """The published table rebuilt from ``root``; verdicts from ``store`` (default :meth:`VerdictStore.open`)."""
-    from metrics.chair import ChairMetric
+    from metrics.base_metric import MIN_WORDS
+    from metrics.chair import ChairMetric, _resolve
     from metrics.pope import POPEMetric
-    from metrics.rope import ROPEMetric
+    from metrics.rope import ROPEMetric, judged_answer
     from metrics.throne import ThroneMetric, completed_labels
 
     store = store or VerdictStore.open()
     mentions, rope_v = store.verdicts("mentions"), store.verdicts("rope")
-    table = {}
+    pope, rope = POPEMetric(mode="random", num_questions_per_image=6), ROPEMetric(num_objects=5)
+    table, committee = {}, {}
     for ds in DATASETS:
-        pope, rope = pope_records(root, ds), rope_records(root, ds)
-        images, refs = mention_records(root, ds)
-        chair = ChairMetric.score(images, mentions, refs)
+        rec = records[ds]
+        chair = ChairMetric.for_dataset(ds, SimpleNamespace(get_object_names=lambda: rec["object_names"]))
+        images = [{"item": img["item"], "gt": img["gt"], "models": {
+            m: {"caption": c, "mentions": chair.tag_mentions(c, img["gt"])} for m, c in img["captions"].items()}}
+            for img in rec["images"]]
+        refs = chair.reference_objects({"annotations": rec["references"]}, images) if ds == "coco" else {}
+        chair_scores = ChairMetric.score(images, mentions, refs)
         support = Counter(g.lower() for img in images for g in set(img["gt"]))
-        vp = ChairMetric.verified_present(images, mentions) if ds == "vg" else None
+        verified = ChairMetric.verified_present(images, mentions)
         throne = ThroneMetric.for_dataset(ds)  # class-wise over categories with MIN_SUPPORT images on VG
-        present = completed_labels(vp) if vp else None
+        present = completed_labels(verified) if ds == "vg" else None
         rows = {}
         for model in MODELS:
-            details = json.load(open(throne_path(root, model, ds)))["per_image_details"][:N_IMAGES]
-            if any(d["caption"] != img["models"][model]["caption"] for d, img in zip(details, images)):
-                raise ValueError(f"{model} {ds}: THRONE captions are not aligned with the caption run")
-            rows[model] = {"POPE": POPEMetric.score(pope[model], store.drop_list(ds)),
-                           "ROPE": ROPEMetric.score(rope[model], rope_v),
-                           "CHAIR": chair[model], "THRONE": throne.score(details, support, present)}
+            rope_recs = []
+            for item, b, gt, resp in rec["rope"][model]:
+                pred = rope.parse_single_response(resp)
+                rope_recs.append((item, b, judged_answer(resp, pred), rope.strict(pred, gt)))
+            details = [{**d, "caption": img["captions"][model]} for d, img in zip(rec["throne"][model], rec["images"])]
+            pope_recs = [(iid, obj, label, pope.process_response(resp)) for iid, obj, label, resp in rec["pope"][model]]
+            rows[model] = {"POPE": POPEMetric.score(pope_recs, store.drop_list(ds)),
+                           "ROPE": ROPEMetric.score(rope_recs, rope_v),
+                           "CHAIR": chair_scores[model], "THRONE": throne.score(details, support, present)}
         for metric in ("POPE", "ROPE", "CHAIR", "THRONE"):
             for kind in ("raw", "raw_balanced", "head") if metric == "POPE" else ("raw", "head"):
                 low = metric == "CHAIR" and kind == "raw"  # raw CHAIR-I: lower is better
@@ -177,7 +200,14 @@ def build_table(root: Path, store: Optional[VerdictStore] = None) -> Dict[str, D
                 for m in MODELS:
                     rows[m][metric][f"rank_{kind}"] = order.index(m) + 1
         table[ds] = rows
-    return table
+        # committee.json: the words the frozen pool (MODELS) resolved present (Mod-CHAIR's coverage
+        # pool) and its verified-present words (Visual Genome THRONE's completed labels)
+        committee[ds] = {img["item"]: {
+            "present": sorted({x["word"] for m, c in img["models"].items() if len(c["caption"].split()) >= MIN_WORDS
+                               for x in c["mentions"]
+                               if _resolve(img["item"], m, x, mentions, refs.get(img["item"], ())) == "present"}),
+            "verified": sorted(vp)} for img, vp in zip(images, verified)}
+    return table, committee
 
 
 # ----------------------------------------------------------------------
@@ -193,24 +223,6 @@ def write_csv(table: Dict, path: Path) -> None:
             for m, name in MODELS.items():
                 r = table[ds][m]
                 w.writerow([name, label, *(f"{r[k]['head']:.3f}" for k in ("POPE", "ROPE", "CHAIR", "THRONE"))])
-
-
-def build_committee(root: Path, store: Optional[VerdictStore] = None) -> Dict[str, Dict[str, Dict[str, List[str]]]]:
-    """committee.json: per dataset and item, the words the frozen pool (``MODELS``) resolved present
-    (Mod-CHAIR's coverage pool) and its verified-present words (Visual Genome THRONE's completed labels)."""
-    from metrics.base_metric import MIN_WORDS
-    from metrics.chair import ChairMetric, _resolve
-
-    mentions = (store or VerdictStore.open()).verdicts("mentions")
-    out = {}
-    for ds in DATASETS:
-        images, refs = mention_records(root, ds)
-        out[ds] = {img["item"]: {
-            "present": sorted({x["word"] for m, c in img["models"].items() if len(c["caption"].split()) >= MIN_WORDS
-                               for x in c["mentions"]
-                               if _resolve(img["item"], m, x, mentions, refs.get(img["item"], ())) == "present"}),
-            "verified": sorted(vp)} for img, vp in zip(images, ChairMetric.verified_present(images, mentions))}
-    return out
 
 
 def _leaves(node, path=()):
@@ -238,9 +250,14 @@ def _preflight() -> None:
         raise SystemExit(f"--check needs WordNet 3.0, not {wordnet.get_version()}")
 
 
+def read_records(path: Path) -> Dict[str, Dict]:
+    return json.loads(gzip.decompress(Path(path).read_bytes()))
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--root", type=Path, help="Results tree to rescore")
+    parser.add_argument("--records", type=Path, help="Records exported from a results tree (--export-records)")
     parser.add_argument("--table", type=Path, help="Existing table JSON instead of --root")
     parser.add_argument("--judgments", type=Path,
                         help="Judgments directory (default $MIRAGE_JUDGMENTS_DIR, else judgments/)")
@@ -250,24 +267,33 @@ def main(argv=None) -> int:
                         help="Compare every value with REF (default: the store's final_tables.json) and "
                              "with the store's committee.json if it has one; exit 1 on any difference")
     parser.add_argument("--export-committee", type=Path, metavar="OUT", help="Write committee.json here")
+    parser.add_argument("--export-records", type=Path, metavar="OUT", help="Write --root's records here (gzip JSON)")
     args = parser.parse_args(argv)
-    if bool(args.root) == bool(args.table):
-        parser.error("pass exactly one of --root and --table")
-    if (args.check or args.export_committee) and not args.root:
-        parser.error("--check and --export-committee need --root")
+    if sum(map(bool, (args.root, args.records, args.table))) != 1:
+        parser.error("pass exactly one of --root, --records and --table")
+    if (args.check or args.export_committee) and args.table:
+        parser.error("--check and --export-committee need --root or --records")
+    if args.export_records and not args.root:
+        parser.error("--export-records needs --root")
     if args.check:
         _preflight()
+    store = com = None
     if args.table:
-        table, store = json.load(open(args.table))["table"], None
+        table = json.load(open(args.table))["table"]
     else:
         store = VerdictStore.open(args.judgments)  # frozen only; checks the verdict files' sha256
         if args.check:  # read (and sha256-check) the reference before the long rebuild
             ref = store.reference_table() if args.check is True else json.load(open(args.check))["table"]
-        table = build_table(args.root, store)
+        records = read_records(args.records) if args.records else load_records(args.root)
+        if args.export_records:
+            args.export_records.write_bytes(gzip.compress(json.dumps(records).encode(), mtime=0))
+        table, com = rebuild(records, store)
     if args.out:
         json.dump({"table": table, "models": MODELS}, open(args.out, "w"), indent=1)
     if args.csv:
         write_csv(table, args.csv)
+    if args.export_committee:
+        args.export_committee.write_text(json.dumps(com, indent=1) + "\n")
     status = 0
     if args.check:
         want, got = dict(_leaves(ref)), dict(_leaves(table))
@@ -276,14 +302,10 @@ def main(argv=None) -> int:
         for p in bad[:20]:
             print("  ", "/".join(map(str, p)), want.get(p, "missing"), got.get(p, "missing"))
         status = int(bool(bad))
-    shipped = {ds: store.committee(ds) for ds in DATASETS} if store else {}
-    if args.export_committee or (args.check and any(shipped.values())):
-        com = build_committee(args.root, store)
-        if args.export_committee:
-            args.export_committee.write_text(json.dumps(com, indent=1) + "\n")
+        shipped = {ds: store.committee(ds) for ds in DATASETS}
         rebuilt = {ds: {i: {k: set(v) for k, v in r.items()} for i, r in com[ds].items()} for ds in DATASETS}
-        if args.check and any(shipped.values()) and rebuilt != shipped:
-            print("committee.json differs from the committee rebuilt from the tree")
+        if any(shipped.values()) and rebuilt != shipped:
+            print("committee.json differs from the committee rebuilt from the records")
             status = 1
     return status
 

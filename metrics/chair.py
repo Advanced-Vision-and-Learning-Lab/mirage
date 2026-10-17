@@ -321,9 +321,11 @@ class ChairMetric(BaseMetric):
                 for s, c in zip(samples, captions)]
 
     def reference_objects(self, captions_json, images: List[Dict]) -> Dict[str, set]:
-        """COCO objects named in each item's reference captions; the CHAIR paper counts them as present."""
+        """COCO objects named in each item's reference captions; the CHAIR paper counts them as present.
+        ``captions_json``: the COCO captions file, or its parsed JSON."""
+        data = captions_json if isinstance(captions_json, dict) else json.load(open(captions_json))
         by_image: Dict[str, List[str]] = {}
-        for a in json.load(open(captions_json))["annotations"]:
+        for a in data["annotations"]:
             by_image.setdefault(f"coco_{a['image_id']}", []).append(a["caption"])
         return {img["item"]: {w for cap in by_image.get(img["item"], []) for w in self.caption_to_words(cap)[1]}
                 for img in images}
