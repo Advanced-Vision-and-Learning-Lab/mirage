@@ -2,7 +2,7 @@
 
 Routing is decided by which backend the Predictor is constructed with —
 never by branching inside the Predictor and never inside ``BaseModel``.
-A backend provides: ``generate``, ``batch_generate``, ``identity()``,
+A backend provides: ``generate``, ``identity()``,
 ``merged_generation_config(kwargs)``, ``load``/``unload``, ``is_loaded``,
 and ``model_name``. A future API backend implements the same surface with
 an identity like ``{"provider": "gemini", "model_id": "models/gemini-2.5-flash"}``;
@@ -18,9 +18,9 @@ class LocalModelBackend:
     """Adapts a ``BaseModel``-shaped object to the backend surface.
 
     Args:
-        model: Any object exposing ``generate``, ``batch_generate``,
-            ``load_model``, ``unload_model``, ``model_name``, ``config``,
-            and ``is_loaded`` (duck-typed; no torch import here).
+        model: Any object exposing ``generate``, ``load_model``,
+            ``unload_model``, ``model_name``, ``config``, and ``is_loaded``
+            (duck-typed; no torch import here).
     """
 
     def __init__(self, model: Any):
@@ -29,9 +29,6 @@ class LocalModelBackend:
 
     def generate(self, prompt, image=None, **kwargs):
         return self.model.generate(prompt=prompt, image=image, **kwargs)
-
-    def batch_generate(self, prompts, images=None, **kwargs):
-        return self.model.batch_generate(prompts, images=images, **kwargs)
 
     def identity(self) -> Dict[str, Any]:
         if self._identity is None:
@@ -104,12 +101,6 @@ class CallableBackend:
             raise ValueError("CallableBackend is text-only")
         self._reject_conflicting_kwargs(kwargs)
         return self._fn([prompt])[0]
-
-    def batch_generate(self, prompts, images=None, **kwargs):
-        if images is not None and any(im is not None for im in images):
-            raise ValueError("CallableBackend is text-only")
-        self._reject_conflicting_kwargs(kwargs)
-        return self._fn(list(prompts))
 
     def _reject_conflicting_kwargs(self, kwargs):
         # fn owns its generation config; kwargs it cannot honor must not be

@@ -7,7 +7,7 @@ or locally hosted models.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union, Tuple, Literal
+from typing import Any, Dict, Optional, Union, Tuple, Literal
 from pathlib import Path
 from PIL import Image
 import logging
@@ -38,7 +38,6 @@ class BaseModel(ABC):
         supports_text (bool): Whether the model can process text
         max_tokens (Optional[int]): Maximum tokens the model can handle
         quantization (Optional[str]): Quantization method ('int4', 'int8', 'none')
-        use_true_batching (bool): Whether to use true batch processing
         _logger (logging.Logger): Logger instance for the model
     """
 
@@ -48,7 +47,6 @@ class BaseModel(ABC):
         model_type: str = "local",
         config: Optional[Dict[str, Any]] = None,
         quantization: Optional[Literal["int4", "int8", "none"]] = None,
-        use_true_batching: bool = False,
         **kwargs
     ):
         """
@@ -59,7 +57,6 @@ class BaseModel(ABC):
             model_type: Type of model deployment ('local' or 'api')
             config: Dictionary containing model-specific configuration
             quantization: Quantization method to use ('int4', 'int8', or 'none' for full precision)
-            use_true_batching: Whether to use true batch processing (default: False for sequential)
             **kwargs: Additional keyword arguments for model initialization
         """
         self.model_name = model_name
@@ -67,7 +64,6 @@ class BaseModel(ABC):
         self.config = config or {}
         self.is_loaded = False
         self.quantization = quantization
-        self.use_true_batching = use_true_batching
 
         # Model capabilities - to be set by subclasses
         self.supports_images = False
@@ -143,35 +139,6 @@ class BaseModel(ABC):
             NotImplementedError: If not implemented by subclass
             ModelNotLoadedError: If model is not loaded
             InvalidInputError: If inputs are invalid for this model
-        """
-        pass
-
-    @abstractmethod
-    def batch_generate(
-        self,
-        prompts: List[str],
-        images: Optional[List[Union[Image.Image, str, Path, None]]] = None,
-        **kwargs
-    ) -> List[Optional[str]]:
-        """
-        Generate responses for a batch of inputs.
-
-        This method should efficiently process multiple inputs, potentially
-        using batching optimizations for local models or parallel API calls.
-
-        Args:
-            prompts: List of text prompts
-            images: Optional list of images (can contain None for text-only prompts)
-            **kwargs: Additional generation parameters
-
-        Returns:
-            List[Optional[str]]: One entry per prompt; None where generation
-                failed, so callers can exclude it instead of scoring it.
-
-        Raises:
-            NotImplementedError: If not implemented by subclass
-            ModelNotLoadedError: If model is not loaded
-            InvalidInputError: If inputs are invalid
         """
         pass
 
@@ -368,53 +335,6 @@ class BaseModel(ABC):
                 raise ValueError(
                     f"BitsAndBytes backend only supports int4/int8, got: {self.quantization}"
                 )
-
-    def batch_inputs(
-        self,
-        prompts: List[str],
-        images: Optional[List[Union[Image.Image, str, Path, None]]] = None,
-        batch_size: Optional[int] = None
-    ) -> List[Tuple[List[str], Optional[List[Union[Image.Image, str, Path, None]]]]]:
-        """
-        Split inputs into batches for processing.
-
-        Utility method to help subclasses implement batch processing. Groups prompts
-        and images into batches of specified size.
-
-        Args:
-            prompts: List of text prompts
-            images: Optional list of images (same length as prompts or None)
-            batch_size: Number of items per batch (None = process all at once)
-
-        Returns:
-            List of tuples, each containing (batch_prompts, batch_images)
-
-        Example:
-            >>> batches = self.batch_inputs(prompts, images, batch_size=4)
-            >>> for batch_prompts, batch_images in batches:
-            >>>     # Process batch
-            >>>     results = self._process_batch(batch_prompts, batch_images)
-        """
-        if images is None:
-            images = [None] * len(prompts)
-
-        if len(prompts) != len(images):
-            raise ValueError(
-                f"Length mismatch: {len(prompts)} prompts but {len(images)} images"
-            )
-
-        # If no batch size specified, return everything as one batch
-        if batch_size is None:
-            return [(prompts, images)]
-
-        # Split into batches
-        batches = []
-        for i in range(0, len(prompts), batch_size):
-            batch_prompts = prompts[i:i + batch_size]
-            batch_images = images[i:i + batch_size]
-            batches.append((batch_prompts, batch_images))
-
-        return batches
 
 
 class ModelError(Exception):
