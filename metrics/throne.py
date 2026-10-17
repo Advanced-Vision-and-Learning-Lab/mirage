@@ -30,7 +30,7 @@ from predict.cache import SQLiteResponseCache, default_cache_path
 from predict.identity import parse_model_name
 from predict.predictor import Predictor
 
-from .base_metric import BaseMetric
+from .base_metric import MIN_WORDS, BaseMetric, fbeta, object_names, pool_objects
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +98,9 @@ _EVALUATOR_MAX_TOKENS = 512
 # Evaluator dtype name -> the str(torch.dtype) recorded in the cache identity; torch loads with the weights.
 _DTYPES = {"bfloat16": "torch.bfloat16", "float16": "torch.float16", "float32": "torch.float32"}
 
+# Visual Genome class-wise scores average only categories annotated in at least this many images.
+MIN_SUPPORT = 5
+
 
 def evaluator_cache_path() -> Path:
     """Where the evaluator's own cache DB lives.
@@ -122,6 +125,48 @@ def _get_article(name: str) -> str:
     if name and name[0].lower() in "aeiou":
         return "an"
     return "a"
+
+
+def classwise(details: List[Dict], support: Counter, min_support: Optional[int] = None,
+              min_words: Optional[int] = MIN_WORDS,
+              is_present: Optional[Callable[[int, str], bool]] = None) -> Dict[str, float]:
+    """THRONE class-wise P and R (macro over categories), then F0.5, on ``per_image_details``.
+
+    ``min_words``: shorter captions predict nothing. ``is_present(i, category)``: a predicted
+    category verified present in image ``i`` counts as true (completed labels). Categories
+    with fewer than ``min_support`` annotated images (``support``) are left out of the average.
+    """
+    tp, fp, fn = Counter(), Counter(), Counter()
+    for i, d in enumerate(details):
+        dq = set(d["disqualified_objects"])
+        short = min_words is not None and len(d["caption"].split()) < min_words
+        pred = set() if short else set(d["predicted_objects"]) - dq
+        truth = set(d["gt_objects"]) - dq
+        if is_present is not None:
+            truth |= {c for c in pred if is_present(i, c)}
+        for c in pred & truth: tp[c] += 1
+        for c in pred - truth: fp[c] += 1
+        for c in truth - pred: fn[c] += 1
+    cats = set(tp) | set(fp) | set(fn)
+    if min_support is not None:
+        cats &= {c for c, n in support.items() if n >= min_support}
+    cats = sorted(cats)
+    ps = [tp[c] / (tp[c] + fp[c]) for c in cats if tp[c] + fp[c]]
+    rs = [tp[c] / (tp[c] + fn[c]) for c in cats if tp[c] + fn[c]]
+    p = sum(ps) / len(ps) if ps else 0.0
+    r = sum(rs) / len(rs) if rs else 0.0
+    return {"head": fbeta(p, r), "P": p, "R": r, "n_head": len(cats)}
+
+
+def completed_labels(vp: List[set]) -> Callable[[int, str], bool]:
+    """``is_present`` for :func:`classwise` from per-image verified-present words (completed labels).
+
+    A category counts as present in image ``i`` when it is one of ``vp[i]`` or an exact,
+    plural or phrase variant of one.
+    """
+    from .chair import variant_of_gt
+
+    return lambda i, c: c in vp[i] or variant_of_gt(c, list(vp[i]))[0] in ("exact", "plural", "phrase")
 
 
 class ThroneMetric(BaseMetric):
@@ -177,6 +222,8 @@ class ThroneMetric(BaseMetric):
         cache_only: Replay mode. The evaluator cache opens read-only, the
             weights never load, and a cache miss raises. An
             ``evaluator_cache`` passed in is used as given.
+        min_support: For :meth:`score`: categories annotated in fewer images
+            are left out of the class-wise average (None keeps all).
     """
 
     def __init__(
@@ -194,6 +241,7 @@ class ThroneMetric(BaseMetric):
         evaluator: Optional[Callable[[List[str]], List[str]]] = None,
         tokenizer: Any = None,
         cache_only: bool = False,
+        min_support: Optional[int] = None,
     ):
         super().__init__("throne")
 
@@ -213,6 +261,9 @@ class ThroneMetric(BaseMetric):
         self._evaluator = evaluator
         self._tokenizer = tokenizer
         self._cache_only = cache_only
+        self.min_support = min_support
+        self.dataset: Optional[str] = None  # set by for_dataset; "vg" makes score() require is_present
+        self._gt: List[List[str]] = []  # raw ground-truth lists, for support()
         self._truncated_inputs = 0
         env_ratio = os.environ.get("MIRAGE_THRONE_DISTRACTOR_RATIO")
         if distractor_ratio is None and env_ratio:
@@ -241,6 +292,24 @@ class ThroneMetric(BaseMetric):
         self._class_tp: Counter = Counter()
         self._class_fp: Counter = Counter()
         self._class_fn: Counter = Counter()
+
+    @classmethod
+    def for_dataset(cls, ds: str, loader=None, **kw) -> "ThroneMetric":
+        """THRONE as scored for ``ds`` ("coco" or "vg").
+
+        COCO asks about its 80 categories and averages over every category.
+        Visual Genome asks about the object names annotated anywhere in the
+        loaded pool (not all of objects.json) and averages over categories
+        with at least ``MIN_SUPPORT`` annotated images. ``kw`` goes to the
+        constructor.
+        """
+        if ds not in ("coco", "vg"):
+            raise ValueError(f"unknown dataset {ds!r}; expected 'coco' or 'vg'")
+        if loader is not None:
+            kw["object_categories"] = object_names(loader) if ds == "coco" else pool_objects(loader)
+        metric = cls(min_support=MIN_SUPPORT if ds == "vg" else None, **kw)
+        metric.dataset = ds
+        return metric
 
     # ------------------------------------------------------------------
     # Evaluator model lifecycle
@@ -559,6 +628,7 @@ class ThroneMetric(BaseMetric):
             )
 
         self._ensure_evaluator_loaded()
+        self._gt.extend(list(gt) for gt in ground_truth)
 
         categories = self._object_categories
         num_categories = len(categories)
@@ -672,6 +742,29 @@ class ThroneMetric(BaseMetric):
         return self.results
 
     # ------------------------------------------------------------------
+    # Class-wise F0.5 (the judged THRONE score)
+    # ------------------------------------------------------------------
+
+    def support(self, gt_lists: Optional[List[List[str]]] = None) -> Counter:
+        """Annotated images per lowercased category; default: the ground truth seen by :meth:`evaluate`."""
+        return Counter(g.lower() for gt in (self._gt if gt_lists is None else gt_lists) for g in set(gt))
+
+    def score(self, details: List[Dict], support: Optional[Counter] = None,
+              is_present: Optional[Callable[[int, str], bool]] = None) -> Dict[str, float]:
+        """Class-wise F0.5 on ``per_image_details``: ``raw`` (paper style, no caption
+        length rule) plus the head score and its P, R and category count.
+
+        ``is_present`` completes the labels (see :func:`completed_labels`); Visual
+        Genome requires it. ``support`` defaults to :meth:`support`.
+        """
+        if self.dataset == "vg" and is_present is None:
+            raise ValueError("Visual Genome THRONE needs is_present (completed labels)")
+        support = self.support() if support is None else support
+        paper = classwise(details, support, self.min_support, min_words=None)
+        head = classwise(details, support, self.min_support, is_present=is_present)
+        return {"raw": paper["head"], **head}
+
+    # ------------------------------------------------------------------
     # Reporting
     # ------------------------------------------------------------------
 
@@ -717,6 +810,7 @@ class ThroneMetric(BaseMetric):
         explicitly for full cleanup.
         """
         super().reset()
+        self._gt = []
         self._truncated_inputs = 0
         self._questions_per_image = []
         self._image_precisions = []

@@ -15,7 +15,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from metrics.base_metric import CAPTION_GEN, SAMPLES, BaseMetric, caption_images, object_names, pool_objects
+from metrics.base_metric import CAPTION_GEN, SAMPLES, BaseMetric, caption_images, object_names
 from metrics.pope import QUESTIONS_PER_IMAGE
 from predict.factory import REGISTRY as MODEL_REGISTRY
 
@@ -116,10 +116,10 @@ def _evaluate(args, model, loader, all_objects):
         from metrics.throne import ThroneMetric
 
         # VG THRONE asks about the pool's object names, not all of objects.json.
-        categories = all_objects if args.dataset == "coco" else pool_objects(loader)
-        metric = ThroneMetric(evaluator_model_name=args.throne_evaluator, object_categories=categories,
-                              distractor_ratio=args.throne_distractor_ratio,
-                              evaluator_max_tokens=args.throne_evaluator_max_tokens, cache_only=args.cache_only)
+        metric = ThroneMetric.for_dataset(DS[args.dataset], loader, evaluator_model_name=args.throne_evaluator,
+                                          distractor_ratio=args.throne_distractor_ratio,
+                                          evaluator_max_tokens=args.throne_evaluator_max_tokens,
+                                          cache_only=args.cache_only)
         metric.run(loader, model, n=args.samples, gen=gen)
     elif args.metric == "faithscore":
         from metrics.faithscore import FaithScoreMetric
