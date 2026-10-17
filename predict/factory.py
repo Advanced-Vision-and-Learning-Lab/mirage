@@ -44,7 +44,7 @@ REGISTRY: Mapping[str, Entry] = MappingProxyType({
                             "mistralai/Ministral-3-14B-Instruct-2512-BF16", "HFChatVLM", _BF16),
     "aya-vision-8b": Entry("models.aya_vision:AyaVision", "MIRAGE_AYA_VISION_8B_MODEL_PATH",
                            "CohereLabs/aya-vision-8b", "HFChatVLM", _BF16),
-    "muse-glimmer-30b": Entry("models.hf_chat:MuseGlimmerVLM", "MIRAGE_MUSE_GLIMMER_30B_MODEL_PATH",
+    "muse-glimmer-30b": Entry("models.muse_glimmer:MuseGlimmerVLM", "MIRAGE_MUSE_GLIMMER_30B_MODEL_PATH",
                               "meta-models/Muse-Glimmer-30B", "MuseGlimmerVLM", _BF16),
     # Thinking-on variants for the ablation (same checkpoints).
     "gemma4-e4b-think": Entry("models.gemma4:Gemma4Thinking", "MIRAGE_GEMMA4_E4B_MODEL_PATH",
