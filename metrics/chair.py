@@ -260,7 +260,7 @@ class ChairMetric(BaseMetric):
             color_guard: Skip the token ``orange`` when it is used as a color
                 (followed by an ordinary word: "orange cat", "orange walls")
                 rather than the COCO fruit class. Off by default, which is the
-                canonical CHAIR behaviour; the offline COCO rescore turns it on.
+                canonical CHAIR behaviour and what the published (judged) scores use.
                 In the September 2026 COCO runs ~70% of "orange" hallucinations
                 per Qwen cell were the color.
         """
