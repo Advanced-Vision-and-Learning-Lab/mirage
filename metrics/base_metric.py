@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from types import MappingProxyType
-from typing import Dict, List, Any, Union, Optional
+from typing import Dict, List, Any, Mapping, Tuple, Union, Optional
 import numpy as np
 
 SAMPLES = 500  # images scored per cell: run.py --samples default
@@ -21,6 +21,41 @@ CAPTION_PROMPTS = MappingProxyType({
     ),
 })
 CAPTION_GEN = MappingProxyType({"max_new_tokens": 512, "do_sample": False})
+
+
+def ground_truth(sample: Dict[str, Any]) -> List[str]:
+    """Annotated object names of a loader sample: COCO categories, else Visual Genome object names."""
+    if "categories" in sample:
+        return list(sample["categories"])
+    return [obj.get("name", "") for obj in sample.get("objects", []) if obj.get("name")]
+
+
+def dataset_key(loader) -> str:
+    """The POOL / CAPTION_PROMPTS key of a loader: "coco" (it has category names), else "vg"."""
+    return "coco" if hasattr(loader, "get_category_names") else "vg"
+
+
+def object_names(loader) -> List[str]:
+    """The dataset vocabulary: COCO category names, or every Visual Genome object name."""
+    return loader.get_category_names() if dataset_key(loader) == "coco" else loader.get_object_names()
+
+
+def pool_objects(loader) -> List[str]:
+    """Sorted object names annotated anywhere in the loaded pool (Visual Genome THRONE asks about these)."""
+    return sorted({name for sample in loader for name in ground_truth(sample)})
+
+
+def caption_images(loader, model, n: int = SAMPLES,
+                   gen: Mapping[str, Any] = CAPTION_GEN) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """Caption the first ``n`` annotated images of ``loader`` with the dataset's prompt.
+
+    Returns:
+        ``(samples, captions)``, one caption per sample.
+    """
+    prompt = CAPTION_PROMPTS[dataset_key(loader)]
+    samples = [s for s in loader if ground_truth(s)][:n]
+    captions = [model.generate(image=loader.load_image(s), prompt=prompt, **gen) for s in samples]
+    return samples, captions
 
 
 class BaseMetric(ABC):
@@ -67,6 +102,25 @@ class BaseMetric(ABC):
             Dictionary containing formatted results
         """
         pass
+
+    def run(self, loader, model, n: int = SAMPLES, gen: Mapping[str, Any] = CAPTION_GEN) -> List[Tuple[Any, str]]:
+        """Caption the first ``n`` annotated images, then evaluate the captions.
+
+        This is the caption protocol (CHAIR, THRONE); POPE and ROPE override it
+        with their question loops. Read the scores with :meth:`format_results`.
+
+        Args:
+            loader: A loaded COCO or Visual Genome dataloader.
+            model: Anything with ``generate(image=..., prompt=..., **gen)``.
+            n: Images to score.
+            gen: Caption generation settings (``max_new_tokens``, ``do_sample``).
+
+        Returns:
+            ``(image_id, caption)`` per scored image.
+        """
+        samples, captions = caption_images(loader, model, n, gen)
+        self.evaluate(captions, [ground_truth(s) for s in samples])
+        return [(s["image_id"], c) for s, c in zip(samples, captions)]
 
     def reset(self) -> None:
         """Reset the metric state."""

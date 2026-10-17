@@ -5,7 +5,7 @@ from typing import Dict, List, Any, Tuple, Optional
 import numpy as np
 from collections import Counter
 
-from .base_metric import BaseMetric
+from .base_metric import SAMPLES, BaseMetric, ground_truth, object_names
 
 QUESTIONS_PER_IMAGE = 6  # POPE questions per image (half yes): POPEMetric and run.py --pope-questions default
 
@@ -47,6 +47,7 @@ class POPEMetric(BaseMetric):
         self.yes_ratio = yes_ratio
         self.num_questions_per_image = num_questions_per_image
         self.popular_objects = popular_objects_list or []
+        self.seed = seed
         self._rng = random.Random(seed) if seed is not None else random
 
         # Track performance
@@ -126,6 +127,31 @@ class POPEMetric(BaseMetric):
             return True
         # Default to "no" if unclear
         return False
+
+    def run(self, loader, model, n: int = SAMPLES) -> List[Tuple[Any, str, bool, str]]:
+        """Ask the first ``n`` annotated images their yes/no questions, then evaluate.
+
+        Per image, the "yes" objects are a seeded draw (seed 42, keyed by image
+        id) from its sorted annotations, and the "no" objects come from the
+        dataset vocabulary. Read the scores with :meth:`format_results`.
+
+        Returns:
+            ``(image_id, question, expected, response)`` per question.
+        """
+        from dataloader.base import sample_for_image
+
+        self._rng = random.Random(self.seed) if self.seed is not None else random
+        all_objects = object_names(loader)
+        n_yes = int(self.num_questions_per_image * self.yes_ratio)
+        records = []
+        for sample in [s for s in loader if ground_truth(s)][:n]:
+            objects, image = ground_truth(sample), loader.load_image(sample)
+            yes = sample_for_image(sorted(objects), min(n_yes, len(objects)), sample["image_id"], seed=42)
+            questions = self.generate_questions(objects, yes, all_objects)
+            records += [(sample["image_id"], q, expected, model.generate(image=image, prompt=q, **self.GEN))
+                        for q, expected in questions]
+        self.evaluate([r[3] for r in records], [(q, expected) for _, q, expected, _ in records])
+        return records
 
     def evaluate(self, model_outputs: List[str], questions_and_answers: List[Tuple[str, bool]], **kwargs) -> Dict[str, float]:
         """
