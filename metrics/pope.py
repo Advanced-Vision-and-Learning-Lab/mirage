@@ -77,6 +77,7 @@ class POPEMetric(BaseMetric):
 
         Args:
             image_objects: List of objects present in the image
+            yes_objects: Objects asked about with a "yes" answer, in order
             all_possible_objects: List of all possible objects in the dataset
 
         Returns:
@@ -309,15 +310,3 @@ class POPEMetric(BaseMetric):
         return {"raw": raw["accuracy"], "raw_balanced": raw["balanced_accuracy"], "head": mod["balanced_accuracy"],
                 "f1": mod["f1"], "yes_ratio": mod["yes_ratio"], "n_raw": raw["questions"], "n_head": mod["questions"]}
 
-    def get_question_stats(self) -> Dict[str, int]:
-        """
-        Get statistics about the questions asked.
-
-        Returns:
-            Dictionary with question statistics
-        """
-        return {
-            "total_questions": len(self.questions),
-            "yes_questions": sum(self.labels),
-            "no_questions": len(self.labels) - sum(self.labels)
-        }

@@ -17,7 +17,8 @@ from pathlib import Path
 
 from PIL import Image
 
-from metrics.base_metric import CAPTION_GEN, SAMPLES, BaseMetric, MissingVerdicts, caption_images, verdict_key
+from metrics.base_metric import (CAPTION_GEN, SAMPLES, BaseMetric, MissingVerdicts, caption_images, ground_truth,
+                                 verdict_key)
 from metrics.pope import QUESTIONS_PER_IMAGE
 from predict.factory import REGISTRY as MODEL_REGISTRY
 
@@ -26,7 +27,7 @@ DS = {"coco": "coco", "visual_genome": "vg"}  # --dataset -> the key metrics use
 JUDGED = ("pope", "rope", "chair", "throne")
 
 
-def _parse_args():
+def _parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--dataset", choices=("coco", "visual_genome"), default="coco")
     p.add_argument("--metric", choices=("pope", "chair", "rope", "throne", "faithscore", "nope"), default="chair")
@@ -53,7 +54,7 @@ def _parse_args():
                    help="judge verdicts directory (default: $MIRAGE_JUDGMENTS_DIR, else judgments/)")
     p.add_argument("--llama-model", default=os.getenv("MIRAGE_LLAMA_MODEL_PATH"))
     p.add_argument("--verbose", action="store_true")
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
 def _load_dataset(args):
@@ -172,9 +173,8 @@ def _evaluate(args, model, loader, judge):
                                           distractor_ratio=args.throne_distractor_ratio,
                                           evaluator_max_tokens=args.throne_evaluator_max_tokens,
                                           cache_only=args.cache_only)
-        captions = metric.run(loader, model, n=args.samples, gen=gen)
-        results = metric.format_results()
-        return {**results, **_judged(lambda: _throne_judged(metric, results, captions, loader, model, judge, ds))}
+        details = metric.run(loader, model, n=args.samples, gen=gen)
+        return {**metric.format_results(), **_judged(lambda: _throne_judged(metric, details, loader, model, judge, ds))}
     if args.metric == "faithscore":
         from metrics.faithscore import FaithScoreMetric
 
@@ -205,7 +205,7 @@ def _chair_judged(args, metric, images, model, judge, ds):
     return metric.score(images, verdicts, refs, judge.committee(ds, images))[verdict_key(model)]
 
 
-def _throne_judged(metric, results, captions, loader, model, judge, ds):
+def _throne_judged(metric, details, loader, model, judge, ds):
     """THRONE class-wise F0.5; on Visual Genome the labels are completed with the words verified
     present (the frozen committee's and this model's judged mentions)."""
     present = None
@@ -213,13 +213,13 @@ def _throne_judged(metric, results, captions, loader, model, judge, ds):
         from metrics.chair import ChairMetric
         from metrics.throne import completed_labels
 
-        by_id = {s["image_id"]: s for s in loader}
+        samples = [s for s in loader if ground_truth(s)][:len(details)]  # the images caption_images scored
         images = ChairMetric.for_dataset(ds, loader).images(
-            ds, [by_id[i] for i, _ in captions], [c for _, c in captions], verdict_key(model))
+            ds, samples, [d["caption"] for d in details], verdict_key(model))
         committee = judge.committee(ds, images)
         verified = ChairMetric.verified_present(images, judge("mentions", images))
         present = completed_labels([committee[img["item"]]["verified"] | v for img, v in zip(images, verified)])
-    return metric.score(results["per_image_details"], is_present=present)
+    return metric.score(details, is_present=present)
 
 
 def _run_nope(args):
@@ -232,8 +232,9 @@ def _run_nope(args):
     metric = NOPEMetric(turn2_path=str(args.nope_turn2), image_dir=str(image_dir),
                         turn1_path=str(args.nope_turn1) if args.nope_turn1 else None)
     records = metric.records[:args.samples]
-    model = build_predictor(args.model or "paligemma")
-    model.load_model()
+    model = build_predictor(args.model or "paligemma", cache_only=args.cache_only)
+    if not args.cache_only:
+        model.load_model()
     outputs = []
     try:
         for record in records:
@@ -244,8 +245,7 @@ def _run_nope(args):
                 outputs.append("")
                 continue
             with Image.open(found[0]) as image:
-                outputs.append(model.generate(image=image.convert("RGB"), prompt=record["question"],
-                                              max_new_tokens=20, do_sample=False))
+                outputs.append(model.generate(image=image.convert("RGB"), prompt=record["question"], **metric.GEN))
     finally:
         model.unload_model()
     metric.records = records
@@ -253,12 +253,14 @@ def _run_nope(args):
     return metric.format_results()
 
 
-def main():
-    args = _parse_args()
+def main(argv=None):
+    args = _parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     if args.samples < 1:
         raise SystemExit("--samples must be positive")
+    if args.cache_only and args.metric == "faithscore":
+        raise SystemExit("--cache-only does not cover FaithScore: its verifier and Llama always load")
     results = _run_nope(args) if args.metric == "nope" else _run_dataset_metric(args)
     rendered = json.dumps(results, indent=2, default=str)
     print(rendered)

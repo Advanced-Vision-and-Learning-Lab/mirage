@@ -13,11 +13,8 @@ from .base_metric import (CAPTION_GEN, MIN_WORDS, SAMPLES, BaseMetric, MissingVe
 
 logger = logging.getLogger(__name__)
 
-# Ensure NLTK tokenizer data is available
-try:
-    nltk.data.find('tokenizers/punkt_tab')
-except LookupError:
-    nltk.download('punkt_tab', quiet=True)
+# The tokenizer data must be installed; it is never downloaded here (LookupError when missing).
+nltk.data.find('tokenizers/punkt_tab')
 
 # Inflect engine for singularization
 _inflect_engine = inflect.engine()

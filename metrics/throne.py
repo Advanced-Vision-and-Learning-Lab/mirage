@@ -22,7 +22,7 @@ import logging
 import os
 import random
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 from collections import Counter
 
 from predict.backends import CallableBackend
@@ -30,7 +30,7 @@ from predict.cache import SQLiteResponseCache, default_cache_path
 from predict.identity import parse_model_name
 from predict.predictor import Predictor
 
-from .base_metric import MIN_WORDS, BaseMetric, fbeta, object_names, pool_objects
+from .base_metric import CAPTION_GEN, MIN_WORDS, SAMPLES, BaseMetric, fbeta, object_names, pool_objects
 
 logger = logging.getLogger(__name__)
 
@@ -591,30 +591,17 @@ class ThroneMetric(BaseMetric):
                 return "disqualified"
 
     # ------------------------------------------------------------------
-    # F-beta score helper
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def compute_f_beta(precision: float, recall: float, beta: float) -> float:
-        """Compute F-beta score.
-
-        Args:
-            precision: Precision value (0-1).
-            recall: Recall value (0-1).
-            beta: Beta parameter. beta < 1 weights precision more;
-                beta > 1 weights recall more.
-
-        Returns:
-            F-beta score (0-1).
-        """
-        if precision + recall == 0:
-            return 0.0
-        beta_sq = beta ** 2
-        return (1 + beta_sq) * precision * recall / (beta_sq * precision + recall)
-
-    # ------------------------------------------------------------------
     # Core evaluation
     # ------------------------------------------------------------------
+
+    def run(self, loader, model, n: int = SAMPLES, gen: Mapping[str, Any] = CAPTION_GEN) -> List[Dict[str, Any]]:
+        """Caption the first ``n`` annotated images and ask the evaluator about each caption.
+
+        Returns:
+            ``per_image_details``, the records :meth:`score` takes (also in :meth:`format_results`).
+        """
+        super().run(loader, model, n, gen)
+        return self._image_details
 
     def evaluate(
         self,
@@ -730,7 +717,7 @@ class ThroneMetric(BaseMetric):
             avg_recall = 0.0
 
         f1 = self.compute_f1(avg_precision, avg_recall)
-        f05 = self.compute_f_beta(avg_precision, avg_recall, beta=0.5)
+        f05 = fbeta(avg_precision, avg_recall)
 
         self.results = {
             "precision": avg_precision,
