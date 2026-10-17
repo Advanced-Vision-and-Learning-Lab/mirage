@@ -96,21 +96,32 @@ def build_model(model_key: Optional[str] = None, **overrides) -> Any:
     return model_cls(**overrides)
 
 
-def build_predictor(model_key: Optional[str] = None,
+def build_predictor(model: Any = None, key: Optional[str] = None,
                     cache: Optional[SQLiteResponseCache] = None,
-                    **overrides) -> Predictor:
-    """Construct a cached :class:`Predictor` around :func:`build_model`.
+                    cache_only: bool = False, **overrides) -> Predictor:
+    """Construct a cached :class:`Predictor` around a registry model or a model instance.
 
     Args:
-        model_key: See :func:`build_model`.
+        model: Registry key (see :func:`build_model`), None for
+            ``key``/``$MIRAGE_VL_MODEL``, or a constructed model instance.
+        key: Registry key when ``model`` is None. Required with an
+            instance: it names the model in results and verdicts.
         cache: Cache instance; None uses the default SQLite cache.
-        **overrides: Forwarded to :func:`build_model`.
+        cache_only: Open the default cache read-only (ignored when
+            ``cache`` is given).
+        **overrides: Forwarded to :func:`build_model` (registry models only).
 
     Returns:
         A Predictor that is a drop-in replacement for the model object;
-        its ``model_key`` attribute records which registry entry was used.
+        its ``model_key`` attribute records the key.
     """
-    key = _resolve_key(model_key)
-    predictor = Predictor(LocalModelBackend(build_model(key, **overrides)), cache=cache)
+    if model is None or isinstance(model, str):
+        key = _resolve_key(model or key)
+        model = build_model(key, **overrides)
+    elif key is None or overrides:
+        raise ValueError("a model instance needs key= and takes no constructor overrides")
+    if cache is None and cache_only:
+        cache = SQLiteResponseCache(readonly=True)
+    predictor = Predictor(LocalModelBackend(model), cache=cache)
     predictor.model_key = key
     return predictor
