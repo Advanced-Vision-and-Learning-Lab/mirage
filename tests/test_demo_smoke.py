@@ -1,4 +1,4 @@
-"""Offline smoke test for a one-image run through the demo CLI."""
+"""Offline smoke test for a one-image run through the run.py CLI."""
 
 import json
 import sys
@@ -11,11 +11,12 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import demo
 import predict.factory as predictor_factory
+import run
+from metrics.base_metric import BaseMetric
 
 
-def test_demo_runs_one_coco_image(tmp_path, monkeypatch, capsys):
+def test_run_one_coco_image(tmp_path, monkeypatch, capsys):
     """Load one local image, call the model once, and write metric output."""
     images_dir = tmp_path / "images"
     images_dir.mkdir()
@@ -48,15 +49,14 @@ def test_demo_runs_one_coco_image(tmp_path, monkeypatch, capsys):
             calls.append(prompt)
             return "yes"
 
-    monkeypatch.setattr(predictor_factory, "build_predictor", lambda model_key=None: FakeModel())
+    monkeypatch.setattr(predictor_factory, "build_predictor", lambda *args, **kwargs: FakeModel())
 
-    # Bypass optional NLP/model imports while exercising demo's real data and CLI flow.
-    metrics_pkg = types.ModuleType("metrics")
-    metrics_pkg.__path__ = []
+    # Bypass the NLTK-backed CHAIR scorer while exercising run.py's real data, caption and CLI flow.
     fake_chair = types.ModuleType("metrics.chair")
 
-    class FakeChairMetric:
+    class FakeChairMetric(BaseMetric):
         def __init__(self, **kwargs):
+            super().__init__("chair")
             self.captions = []
 
         def evaluate(self, captions, ground_truth):
@@ -67,17 +67,15 @@ def test_demo_runs_one_coco_image(tmp_path, monkeypatch, capsys):
             return {"caption_count": len(self.captions), "caption": self.captions[0]}
 
     fake_chair.ChairMetric = FakeChairMetric
-    monkeypatch.setitem(sys.modules, "metrics", metrics_pkg)
+    fake_chair.vg_vocabulary = None  # Visual Genome only
     monkeypatch.setitem(sys.modules, "metrics.chair", fake_chair)
 
     output_path = tmp_path / "results.json"
-    monkeypatch.setattr(sys, "argv", [
-        "demo.py", "--dataset", "coco", "--metric", "chair", "--model", "paligemma",
+    assert run.main([
+        "--dataset", "coco", "--metric", "chair", "--model", "paligemma",
         "--samples", "1", "--annotations", str(annotations), "--images", str(images_dir),
         "--output", str(output_path),
-    ])
-
-    assert demo.main() == 0
+    ]) == 0
     assert len(calls) == 1
     assert json.loads(output_path.read_text(encoding="utf-8")) == {
         "caption_count": 1,
