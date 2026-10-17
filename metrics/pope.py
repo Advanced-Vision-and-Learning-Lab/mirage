@@ -141,7 +141,7 @@ class POPEMetric(BaseMetric):
         # Default to "no" if unclear
         return False
 
-    def run(self, loader, model, n: int = SAMPLES) -> List[Tuple[Any, str, bool, str]]:
+    def run(self, loader, model, n: int = SAMPLES) -> List[Tuple[str, str, bool, bool]]:
         """Ask the first ``n`` annotated images their yes/no questions, then evaluate.
 
         Per image, the "yes" objects are a seeded draw (seed 42, keyed by image
@@ -149,21 +149,27 @@ class POPEMetric(BaseMetric):
         dataset vocabulary. Read the scores with :meth:`format_results`.
 
         Returns:
-            ``(image_id, question, expected, response)`` per question.
+            ``(image_id, object, annotated, said_yes)`` per question, the records
+            :meth:`score` takes (built as repro.py builds them from the cache).
         """
         from dataloader.base import sample_for_image
 
         self._rng = random.Random(self.seed) if self.seed is not None else random
         all_objects = object_names(loader)
         n_yes = int(self.num_questions_per_image * self.yes_ratio)
-        records = []
+        asked = []
         for sample in [s for s in loader if ground_truth(s)][:n]:
             objects, image = ground_truth(sample), loader.load_image(sample)
             yes = sample_for_image(sorted(objects), min(n_yes, len(objects)), sample["image_id"], seed=42)
             questions = self.generate_questions(objects, yes, all_objects)
-            records += [(sample["image_id"], q, expected, model.generate(image=image, prompt=q, **self.GEN))
-                        for q, expected in questions]
-        self.evaluate([r[3] for r in records], [(q, expected) for _, q, expected, _ in records])
+            asked += [(sample, q, expected, model.generate(image=image, prompt=q, **self.GEN))
+                      for q, expected in questions]
+        self.evaluate([r for *_, r in asked], [(q, expected) for _, q, expected, _ in asked])
+        records = []
+        for sample, q, _, response in asked:
+            obj = QUESTION_RE.search(q).group(1)
+            records.append((str(sample["image_id"]), obj, obj in set(ground_truth(sample)),
+                            self.process_response(response)))
         return records
 
     def evaluate(self, model_outputs: List[str], questions_and_answers: List[Tuple[str, bool]], **kwargs) -> Dict[str, float]:

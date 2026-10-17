@@ -8,7 +8,8 @@ from collections import Counter
 import nltk
 import inflect
 
-from .base_metric import MIN_WORDS, BaseMetric, MissingVerdicts, fbeta
+from .base_metric import (CAPTION_GEN, MIN_WORDS, SAMPLES, BaseMetric, MissingVerdicts, caption_images,
+                          dataset_key, fbeta, ground_truth)
 
 logger = logging.getLogger(__name__)
 
@@ -307,6 +308,21 @@ class ChairMetric(BaseMetric):
         else:
             chair = cls(use_coco_synonyms=True)
         return chair
+
+    def run(self, loader, model, n: int = SAMPLES, gen=CAPTION_GEN) -> List[Dict]:
+        """Caption the first ``n`` annotated images, evaluate them (plain CHAIR, see
+        :meth:`format_results`), and return their tagged mentions (see :meth:`images`)."""
+        samples, captions = caption_images(loader, model, n, gen)
+        self.evaluate(captions, [ground_truth(s) for s in samples])
+        key = getattr(model, "model_key", None) or model.model_name
+        return self.images(dataset_key(loader), samples, captions, key)
+
+    def images(self, ds: str, samples: List[Dict], captions: List[str], key: str) -> List[Dict]:
+        """The images :meth:`score` takes: ``{"item", "gt", "models": {key: {"caption", "mentions"}}}``
+        per sample, where ``key`` names the model in mention verdicts (its registry key)."""
+        return [{"item": f"{ds}_{s['image_id']}", "gt": ground_truth(s),
+                 "models": {key: {"caption": c, "mentions": self.tag_mentions(c, ground_truth(s))}}}
+                for s, c in zip(samples, captions)]
 
     def reference_objects(self, captions_json, images: List[Dict]) -> Dict[str, set]:
         """COCO objects named in each item's reference captions; the CHAIR paper counts them as present."""

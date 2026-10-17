@@ -25,7 +25,7 @@ from typing import Any, Dict, Iterable, List, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .base_metric import SAMPLES, BaseMetric, MissingVerdicts
+from .base_metric import SAMPLES, BaseMetric, MissingVerdicts, dataset_key
 
 logger = logging.getLogger(__name__)
 
@@ -305,15 +305,18 @@ class ROPEMetric(BaseMetric):
                 return phrase
         return text.strip(" .,;:()" + _QUOTES)
 
-    def run(self, loader, model, n: int = SAMPLES) -> List[Tuple[Any, int, str, str]]:
+    def run(self, loader, model, n: int = SAMPLES) -> List[Tuple[str, int, str, bool]]:
         """Ask about each numbered box of the first ``n`` images that have enough boxes, then evaluate.
 
         Each image gets ``num_objects`` boxes drawn on it and one question per
         box. Read the scores with :meth:`format_results`.
 
         Returns:
-            ``(image_id, box, response, ground_truth)`` per box (box is 1-based).
+            ``(item, box, answer_key, strict_correct)`` per box (box is 1-based), the
+            records :meth:`score` takes: ``item`` is ``<dataset>_<image id>`` and
+            ``answer_key`` is :func:`judged_answer`, the key of the stored verdicts.
         """
+        ds = dataset_key(loader)
         boxes = loader.extract_bboxes_for_rope(num_objects=self.num_objects)
         predictions, ground_truth, records = [], [], []
         for sample in [s for s in loader if str(s["image_id"]) in boxes][:n]:
@@ -323,7 +326,8 @@ class ROPEMetric(BaseMetric):
                                         **self.GEN) for i in range(1, self.num_objects + 1)]
             predictions.append([self.parse_single_response(r) for r in responses])
             ground_truth.append([b["name"] for b in image_boxes])
-            records += [(sample["image_id"], i, r, gt) for i, (r, gt) in enumerate(zip(responses, ground_truth[-1]), 1)]
+            records += [(f"{ds}_{sample['image_id']}", i, judged_answer(r, p), self.strict(p, gt))
+                        for i, (r, p, gt) in enumerate(zip(responses, predictions[-1], ground_truth[-1]), 1)]
         if not predictions:
             raise RuntimeError("No images had enough object boxes for ROPE.")
         self.evaluate_predictions(predictions, ground_truth)
