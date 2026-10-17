@@ -284,20 +284,3 @@ class PaligemmaModel(BaseModel):
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
         return inputs
-
-    def get_model_info(self) -> Dict[str, Any]:
-        """
-        Get Paligemma-specific model information.
-
-        Returns:
-            Dict containing model metadata and current state
-        """
-        info = super().get_model_info()
-        info.update({
-            'device': self.device,
-            'torch_dtype': str(self.torch_dtype),
-            'model_architecture': 'PaliGemma',
-            'input_resolution': '224x224',
-            'parameter_count': '3B'
-        })
-        return info

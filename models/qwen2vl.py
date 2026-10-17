@@ -318,20 +318,3 @@ class Qwen2VLModel(BaseModel):
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
         return inputs
-
-    def get_model_info(self) -> Dict[str, Any]:
-        """
-        Get Qwen2-VL-specific model information.
-
-        Returns:
-            Dict containing model metadata and current state
-        """
-        info = super().get_model_info()
-        info.update({
-            'device': self.device,
-            'torch_dtype': str(self.torch_dtype),
-            'model_architecture': 'Qwen2-VL',
-            'context_length': self.max_tokens,
-            'supports_multilingual': True
-        })
-        return info

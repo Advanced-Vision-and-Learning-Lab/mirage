@@ -11,7 +11,6 @@ from typing import Any, Dict, Optional, Union, Tuple, Literal
 from pathlib import Path
 from PIL import Image
 import logging
-import torch
 
 
 class BaseModel(ABC):
@@ -216,45 +215,6 @@ class BaseModel(ABC):
 
         return image
 
-    def get_model_info(self) -> Dict[str, Any]:
-        """
-        Get comprehensive information about the model.
-
-        Returns:
-            Dict containing model metadata and current state
-        """
-        return {
-            'model_name': self.model_name,
-            'model_type': self.model_type,
-            'is_loaded': self.is_loaded,
-            'supports_images': self.supports_images,
-            'supports_text': self.supports_text,
-            'max_tokens': self.max_tokens,
-            'config': self.config.copy(),
-            'class_name': self.__class__.__name__
-        }
-
-    def update_config(self, **kwargs) -> None:
-        """
-        Update model configuration.
-
-        Args:
-            **kwargs: Configuration parameters to update
-        """
-        self.config.update(kwargs)
-        self._logger.info(f"Updated config: {kwargs}")
-
-    def __enter__(self):
-        """Context manager entry - load model if not already loaded."""
-        if not self.is_loaded:
-            self.load_model()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit - unload model."""
-        if self.is_loaded:
-            self.unload_model()
-
     def __repr__(self) -> str:
         """String representation of the model."""
         status = "loaded" if self.is_loaded else "not loaded"
@@ -304,6 +264,8 @@ class BaseModel(ABC):
 
         elif quantization_backend == "bitsandbytes":
             if self.quantization == "int4":
+                import torch
+
                 try:
                     from transformers import BitsAndBytesConfig
                     self._logger.info("Using BitsAndBytes 4-bit quantization")
