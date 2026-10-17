@@ -48,6 +48,12 @@ def dataset_key(loader) -> str:
     return "coco" if hasattr(loader, "get_category_names") else "vg"
 
 
+def verdict_key(model) -> str:
+    """The name a model's mention verdicts are stored under: ``model.model_key`` (its registry
+    key, set by predict.factory.build_predictor), else its ``model_name``."""
+    return getattr(model, "model_key", None) or model.model_name
+
+
 def object_names(loader) -> List[str]:
     """The dataset vocabulary: COCO category names, or every Visual Genome object name."""
     return loader.get_category_names() if dataset_key(loader) == "coco" else loader.get_object_names()

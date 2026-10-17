@@ -9,7 +9,7 @@ import nltk
 import inflect
 
 from .base_metric import (CAPTION_GEN, MIN_WORDS, SAMPLES, BaseMetric, MissingVerdicts, caption_images,
-                          dataset_key, fbeta, ground_truth)
+                          dataset_key, fbeta, ground_truth, verdict_key)
 
 logger = logging.getLogger(__name__)
 
@@ -314,8 +314,7 @@ class ChairMetric(BaseMetric):
         :meth:`format_results`), and return their tagged mentions (see :meth:`images`)."""
         samples, captions = caption_images(loader, model, n, gen)
         self.evaluate(captions, [ground_truth(s) for s in samples])
-        key = getattr(model, "model_key", None) or model.model_name
-        return self.images(dataset_key(loader), samples, captions, key)
+        return self.images(dataset_key(loader), samples, captions, verdict_key(model))
 
     def images(self, ds: str, samples: List[Dict], captions: List[str], key: str) -> List[Dict]:
         """The images :meth:`score` takes: ``{"item", "gt", "models": {key: {"caption", "mentions"}}}``

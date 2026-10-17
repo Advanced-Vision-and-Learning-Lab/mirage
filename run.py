@@ -17,12 +17,13 @@ from pathlib import Path
 
 from PIL import Image
 
-from metrics.base_metric import CAPTION_GEN, SAMPLES, BaseMetric, MissingVerdicts, caption_images
+from metrics.base_metric import CAPTION_GEN, SAMPLES, BaseMetric, MissingVerdicts, caption_images, verdict_key
 from metrics.pope import QUESTIONS_PER_IMAGE
 from predict.factory import REGISTRY as MODEL_REGISTRY
 
 logger = logging.getLogger("mirage.run")
 DS = {"coco": "coco", "visual_genome": "vg"}  # --dataset -> the key metrics use (POOL, CAPTION_PROMPTS)
+JUDGED = ("pope", "rope", "chair", "throne")
 
 
 def _parse_args():
@@ -82,8 +83,11 @@ def _run_dataset_metric(args):
     loader = _load_dataset(args)
     if not len(loader):
         raise RuntimeError("No images were loaded. Check the annotation and image paths.")
-    # The judged scores read the frozen verdicts; opening them first fails before any generation.
-    judge = Judge.load(args.judgments) if args.metric in ("pope", "rope", "chair", "throne") else None
+    # The judged scores' inputs are checked first, so a missing one fails before any generation.
+    judge = None
+    if args.metric in JUDGED:
+        _check_judged_inputs(args)
+        judge = Judge.load(args.judgments)
     # --cache-only opens the prediction cache read-only: a replay never writes to it, and a miss raises.
     model = build_predictor(args.model, cache_only=args.cache_only)
     if not args.cache_only:
@@ -94,6 +98,36 @@ def _run_dataset_metric(args):
         return results
     finally:
         model.unload_model()
+
+
+def _captions_json(args) -> Path:
+    """COCO reference captions, next to the instances annotations."""
+    annotations = args.annotations.parent if args.annotations else Path("datasets/coco/annotations")
+    return annotations / f"captions_{args.split}.json"
+
+
+def _check_judged_inputs(args):
+    """What the judged scores read besides the verdicts: COCO CHAIR's reference captions, and the
+    NLTK data that tags ROPE answers and caption mentions (never downloaded here).
+
+    Raises:
+        FileNotFoundError: The reference captions are missing.
+        LookupError: NLTK data is missing.
+    """
+    import nltk
+
+    ds = DS[args.dataset]
+    if args.metric == "chair" and ds == "coco" and not _captions_json(args).exists():
+        raise FileNotFoundError(f"judged COCO CHAIR needs the reference captions {_captions_json(args)}")
+    if args.metric in ("rope", "chair") or (args.metric == "throne" and ds == "vg"):
+        for resource in ("tokenizers/punkt_tab", "taggers/averaged_perceptron_tagger_eng"):
+            nltk.data.find(resource)
+    if args.metric == "chair" or (args.metric == "throne" and ds == "vg"):
+        from nltk.corpus import wordnet  # mention relations to the annotations (it ships as a zip)
+
+        wordnet.ensure_loaded()
+        if ds == "vg":
+            nltk.data.find("corpora/stopwords")  # the Visual Genome CHAIR vocabulary
 
 
 def _judged(score):
@@ -165,12 +199,10 @@ def _evaluate(args, model, loader, judge):
 
 def _chair_judged(args, metric, images, model, judge, ds):
     """Mod-CHAIR of this model: its judged mentions, with the frozen committee's words in the coverage pool."""
-    refs = {}
-    if ds == "coco":  # CHAIR paper: objects named in the reference captions count as present
-        annotations = args.annotations.parent if args.annotations else Path("datasets/coco/annotations")
-        refs = metric.reference_objects(annotations / f"captions_{args.split}.json", images)
+    # CHAIR paper: objects named in the reference captions count as present
+    refs = metric.reference_objects(_captions_json(args), images) if ds == "coco" else {}
     verdicts = judge("mentions", images, refs=refs)
-    return metric.score(images, verdicts, refs, judge.committee(ds, images))[model.model_key]
+    return metric.score(images, verdicts, refs, judge.committee(ds, images))[verdict_key(model)]
 
 
 def _throne_judged(metric, results, captions, loader, model, judge, ds):
@@ -183,7 +215,7 @@ def _throne_judged(metric, results, captions, loader, model, judge, ds):
 
         by_id = {s["image_id"]: s for s in loader}
         images = ChairMetric.for_dataset(ds, loader).images(
-            ds, [by_id[i] for i, _ in captions], [c for _, c in captions], model.model_key)
+            ds, [by_id[i] for i, _ in captions], [c for _, c in captions], verdict_key(model))
         committee = judge.committee(ds, images)
         verified = ChairMetric.verified_present(images, judge("mentions", images))
         present = completed_labels([committee[img["item"]]["verified"] | v for img, v in zip(images, verified)])
