@@ -10,6 +10,7 @@ covers the nine models in `docs/model-results.csv`.
 | `mentions.tsv.gz` | 43,499 | item, `<model>\|<word>`, verdict (`judge-mentions` rubric v3.1) |
 | `rope.tsv.gz` | 28,897 | item, `<box>\|<answer>`, verdict (`judge-rope` v1) |
 | `pope_drop_list.tsv` | 569 | dataset, image_id, object, reason (junk, present or unsure; `judge-pope` v1) |
+| `committee.json` | 1,000 | per item: words the frozen pool resolved present, and its verified present words (`repro.py --export-committee`) |
 | `final_tables.json` | | the published table; `python repro.py --root TREE --check` rebuilds and compares it |
 
 Mention tagging uses NLTK 3.9.4 with WordNet 3.0 and inflect 7.5.0; a different WordNet

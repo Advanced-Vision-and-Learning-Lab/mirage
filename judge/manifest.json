@@ -4,7 +4,8 @@
  "files": {
   "mentions.tsv.gz": "4ac7b61f8ec143ac9c53174df7ed07724ae42d0a042e68620870dbcb56c15218",
   "rope.tsv.gz": "b1495399c3aeca5c944186488db8339a605b2356d5337ac9352f116e6b1d8e90",
-  "pope_drop_list.tsv": "e091da19559c71e3802ab3c544e6452731b4911c7df4df39ed1fea8b6a0feeea"
+  "pope_drop_list.tsv": "e091da19559c71e3802ab3c544e6452731b4911c7df4df39ed1fea8b6a0feeea",
+  "committee.json": "39181ca025b468b0a25d86db14b7a64cd49dfb47a3c82fad4e7c6222f35a6056"
  },
  "reference": {
   "final_tables.json": "05be42320e38935060d22c4dc6230ae79054027f819ffe2540a53e3971bd9f43"
