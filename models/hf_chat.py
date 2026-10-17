@@ -125,12 +125,3 @@ class HFChatVLM(BaseModel):
             logger.warning("Thinking block not closed within %d tokens", gen_kwargs["max_new_tokens"])
         text = self.processor.decode(new_tokens, skip_special_tokens=True)
         return _THINKING_RE.sub("", text).strip()
-
-
-class HFChatThinkingVLM(HFChatVLM):
-    """``HFChatVLM`` with thinking on; a separate class so cache keys never mix modes."""
-
-    cache_name = "HFChatThinkingVLM"
-
-    def __init__(self, model_name: str, **kwargs):
-        super().__init__(model_name, enable_thinking=True, **kwargs)
