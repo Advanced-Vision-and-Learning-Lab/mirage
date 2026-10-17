@@ -10,6 +10,7 @@ import logging
 import re
 from collections import defaultdict
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Dict, List
 
 from .base_metric import BaseMetric
@@ -61,6 +62,8 @@ class NOPEMetric(BaseMetric):
     Raises:
         FileNotFoundError: If turn2_path does not exist.
     """
+
+    GEN = MappingProxyType({"max_new_tokens": 20, "do_sample": False})
 
     def __init__(
         self,
