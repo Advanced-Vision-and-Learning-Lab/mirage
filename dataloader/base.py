@@ -7,8 +7,9 @@ to ensure consistent behavior across different datasets.
 
 import random
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Iterator, Optional, Union, List, Tuple
+from typing import Any, Dict, Iterator, Optional, Union, List
 from pathlib import Path
+from PIL import Image
 
 ROPE_SAMPLING_SEED = 42
 
@@ -42,28 +43,19 @@ class BaseDataLoader(ABC):
 
     Attributes:
         data_path (Path): Path to the dataset
-        batch_size (int): Number of samples per batch
-        shuffle (bool): Whether to shuffle the data
+        skipped (int): Images skipped by load_data (file missing or unreadable) before the pool filled
         _loaded (bool): Internal flag to track if data has been loaded
     """
 
-    def __init__(
-        self,
-        data_path: Union[str, Path],
-        batch_size: int = 1,
-        shuffle: bool = False
-    ):
+    def __init__(self, data_path: Union[str, Path]):
         """
         Initialize the dataloader.
 
         Args:
             data_path: Path to the dataset directory or file
-            batch_size: Number of samples to load per batch
-            shuffle: Whether to shuffle the data during iteration
         """
         self.data_path = Path(data_path)
-        self.batch_size = batch_size
-        self.shuffle = shuffle
+        self.skipped = 0
         self._loaded = False
 
     @abstractmethod
@@ -130,32 +122,36 @@ class BaseDataLoader(ABC):
         """
         return self.data_path.exists()
 
-    def get_info(self) -> Dict[str, Any]:
-        """
-        Get information about the dataset.
-
-        Returns:
-            Dict containing dataset metadata
-        """
-        return {
-            'data_path': str(self.data_path),
-            'batch_size': self.batch_size,
-            'shuffle': self.shuffle,
-            'loaded': self._loaded,
-            'total_samples': len(self) if self._loaded else None
-        }
-
     @abstractmethod
-    def extract_objects(self, sample_indices: Union[List[int], None] = None) -> Tuple[Dict[str, List[str]], List[str]]:
+    def load_image(self, sample: Dict[str, Any]) -> Image.Image:
         """
-        Extract objects or classes from dataset samples.
+        Load the image associated with a sample.
 
         Args:
-            sample_indices: Optional list of indices to process (None for all)
+            sample: Sample dictionary from __getitem__
 
         Returns:
-            Tuple containing:
-                - Dict mapping sample_id -> list of objects in that sample
-                - List of all unique objects across all samples
+            PIL.Image: Loaded RGB image
         """
-        raise NotImplementedError("Each dataloader must implement extract_objects method")
+        pass
+
+    @abstractmethod
+    def extract_bboxes_for_rope(
+        self,
+        num_objects: int = 5,
+        sample_indices: Union[List[int], None] = None,
+        seed: Optional[int] = ROPE_SAMPLING_SEED,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Extract bounding boxes suitable for ROPE evaluation.
+
+        Args:
+            num_objects: Required number of bounding boxes per image
+            sample_indices: Optional list of image indices to consider (None for all)
+            seed: Base seed for the per-image sampling RNG (None for process-global random)
+
+        Returns:
+            Dict mapping image_id (str) to a list of exactly num_objects bbox
+            dicts, each with keys: xmin, ymin, xmax, ymax, name
+        """
+        pass

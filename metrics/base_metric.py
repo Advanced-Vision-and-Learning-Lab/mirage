@@ -36,15 +36,13 @@ class MissingVerdicts(RuntimeError):
 
 
 def ground_truth(sample: Dict[str, Any]) -> List[str]:
-    """Annotated object names of a loader sample: COCO categories, else Visual Genome object names."""
-    if "categories" in sample:
-        return list(sample["categories"])
-    return [obj.get("name", "") for obj in sample.get("objects", []) if obj.get("name")]
+    """Annotated object names of a loader sample: COCO categories or Visual Genome object names."""
+    return list(sample["categories"])
 
 
 def dataset_key(loader) -> str:
-    """The POOL / CAPTION_PROMPTS key of a loader: "coco" (it has category names), else "vg"."""
-    return "coco" if hasattr(loader, "get_category_names") else "vg"
+    """The POOL / CAPTION_PROMPTS key of a loader: its ``KEY``, "coco" or "vg"."""
+    return loader.KEY
 
 
 def verdict_key(model) -> str:

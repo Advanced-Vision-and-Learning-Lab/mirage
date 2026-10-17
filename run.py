@@ -57,11 +57,11 @@ def _load_dataset(args):
     if args.dataset == "coco":
         root = Path("datasets/coco")
         loader = COCODataLoader(data_path=args.annotations or root / "annotations" / f"instances_{args.split}.json",
-                                images_path=args.images or root / args.split, shuffle=False)
+                                images_path=args.images or root / args.split)
     else:
         root = Path("datasets/visual_genome")
         loader = VisualGenomeDataLoader(data_path=args.annotations or root / "objects.json",
-                                        images_path=args.images or root / "VG_100K", shuffle=False)
+                                        images_path=args.images or root / "VG_100K")
     if args.metric == "rope":
         from metrics.rope import ROPEMetric as metric_cls
     else:

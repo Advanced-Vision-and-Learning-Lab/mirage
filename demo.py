@@ -11,7 +11,7 @@ DS, N = "coco", 5  # images per metric
 
 
 def coco(metric):  # COCO val2017 in file order; each metric says how many candidate images it draws from
-    loader = COCODataLoader("datasets/coco/annotations/instances_val2017.json", "datasets/coco/val2017", shuffle=False)
+    loader = COCODataLoader("datasets/coco/annotations/instances_val2017.json", "datasets/coco/val2017")
     loader.load_data(max_samples=metric.POOL[DS])
     return loader
 

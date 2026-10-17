@@ -49,11 +49,11 @@ def _loader(root: Path, ds: str, max_samples: int):
     if ds == "vg":
         from dataloader.visual_genome import VisualGenomeDataLoader
         loader = VisualGenomeDataLoader(data_path=str(root / "datasets/visual_genome/objects.json"),
-                                        images_path=str(root / "datasets/visual_genome/VG_100K"), shuffle=False)
+                                        images_path=str(root / "datasets/visual_genome/VG_100K"))
     else:
         from dataloader.coco import COCODataLoader
         loader = COCODataLoader(data_path=str(root / "datasets/coco/annotations/instances_val2017.json"),
-                                images_path=str(root / "datasets/coco/val2017"), shuffle=False)
+                                images_path=str(root / "datasets/coco/val2017"))
     loader.load_data(max_samples=max_samples)
     return loader
 
