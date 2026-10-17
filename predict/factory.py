@@ -1,4 +1,4 @@
-"""Factory helpers replacing the per-driver model-selection blocks.
+"""Model registry and the factory helpers drivers use to build models.
 
 Model classes are imported lazily inside :func:`build_model` so this
 module (and the whole ``predict`` package) stays importable without torch.
@@ -6,42 +6,82 @@ module (and the whole ``predict`` package) stays importable without torch.
 
 import importlib
 import os
-from typing import Any, Optional
+from types import MappingProxyType
+from typing import Any, Mapping, NamedTuple, Optional, Tuple, Union
 
 from predict.backends import LocalModelBackend
 from predict.cache import SQLiteResponseCache
+from predict.identity import parse_model_name
 from predict.predictor import Predictor
 
-_REGISTRY = {
-    "paligemma": ("models.paligemma", "PaligemmaModel",
-                  "MIRAGE_PALIGEMMA_MODEL_PATH", "google/paligemma-3b-mix-224"),
-    "qwen2vl": ("models.qwen2vl", "Qwen2VLModel",
-                "MIRAGE_QWEN_MODEL_PATH", "Qwen/Qwen2-VL-2B-Instruct"),
-    "gemma4-e4b": ("models.hf_chat", "HFChatVLM",
-                   "MIRAGE_GEMMA4_E4B_MODEL_PATH", "google/gemma-4-E4B-it"),
-    "gemma4-12b": ("models.hf_chat", "HFChatVLM",
-                   "MIRAGE_GEMMA4_12B_MODEL_PATH", "google/gemma-4-12B-it"),
-    "ministral3-8b": ("models.hf_chat", "HFChatVLM",
-                      "MIRAGE_MINISTRAL3_8B_MODEL_PATH", "mistralai/Ministral-3-8B-Instruct-2512-BF16"),
-    "ministral3-14b": ("models.hf_chat", "HFChatVLM",
-                       "MIRAGE_MINISTRAL3_14B_MODEL_PATH", "mistralai/Ministral-3-14B-Instruct-2512-BF16"),
-    "aya-vision-8b": ("models.hf_chat", "HFChatVLM",
-                      "MIRAGE_AYA_VISION_8B_MODEL_PATH", "CohereLabs/aya-vision-8b"),
-}
+
+class Entry(NamedTuple):
+    target: str                      # "module:Class"
+    env: Union[str, Tuple[str, ...]]  # model path variable(s), first set one wins
+    default: str                     # HF id used when no variable is set
+    cache_name: str                  # mirror of the class's cache_name, so identity needs no torch
+    dtype: str                       # mirror of str(model.torch_dtype)
+
+
+_BF16 = "torch.bfloat16"
+_QWEN = "MIRAGE_QWEN_MODEL_PATH"
+
+REGISTRY: Mapping[str, Entry] = MappingProxyType({
+    "paligemma": Entry("models.paligemma:PaligemmaModel", "MIRAGE_PALIGEMMA_MODEL_PATH",
+                       "google/paligemma-3b-mix-224", "PaligemmaModel", _BF16),
+    "qwen2vl": Entry("models.qwen2vl:Qwen2VLModel", _QWEN, "Qwen/Qwen2-VL-2B-Instruct", "Qwen2VLModel", _BF16),
+    "qwen2vl-2b": Entry("models.qwen2vl:Qwen2VLModel", ("MIRAGE_QWEN2VL_2B_MODEL_PATH", _QWEN),
+                        "Qwen/Qwen2-VL-2B-Instruct", "Qwen2VLModel", _BF16),
+    "qwen2vl-7b": Entry("models.qwen2vl:Qwen2VLModel", ("MIRAGE_QWEN2VL_7B_MODEL_PATH", _QWEN),
+                        "Qwen/Qwen2-VL-7B-Instruct", "Qwen2VLModel", _BF16),
+    "gemma4-e4b": Entry("models.gemma4:Gemma4", "MIRAGE_GEMMA4_E4B_MODEL_PATH",
+                        "google/gemma-4-E4B-it", "HFChatVLM", _BF16),
+    "gemma4-12b": Entry("models.gemma4:Gemma4", "MIRAGE_GEMMA4_12B_MODEL_PATH",
+                        "google/gemma-4-12B-it", "HFChatVLM", _BF16),
+    "ministral3-8b": Entry("models.ministral3:Ministral3", "MIRAGE_MINISTRAL3_8B_MODEL_PATH",
+                           "mistralai/Ministral-3-8B-Instruct-2512-BF16", "HFChatVLM", _BF16),
+    "ministral3-14b": Entry("models.ministral3:Ministral3", "MIRAGE_MINISTRAL3_14B_MODEL_PATH",
+                            "mistralai/Ministral-3-14B-Instruct-2512-BF16", "HFChatVLM", _BF16),
+    "aya-vision-8b": Entry("models.aya_vision:AyaVision", "MIRAGE_AYA_VISION_8B_MODEL_PATH",
+                           "CohereLabs/aya-vision-8b", "HFChatVLM", _BF16),
+})
 
 
 def _resolve_key(model_key: Optional[str]) -> str:
     key = (model_key or os.getenv("MIRAGE_VL_MODEL", "paligemma")).lower()
-    if key not in _REGISTRY:
-        raise ValueError(f"unknown model key {key!r}; expected one of {sorted(_REGISTRY)}")
+    if key not in REGISTRY:
+        raise ValueError(f"unknown model key {key!r}; expected one of {sorted(REGISTRY)}")
     return key
+
+
+def _model_name(entry: Entry, env: Mapping[str, str]) -> str:
+    for var in (entry.env,) if isinstance(entry.env, str) else entry.env:
+        if var in env:
+            return env[var]
+    return entry.default
+
+
+def identity_for(key: str, env: Mapping[str, str] = os.environ) -> dict:
+    """Cache identity of a registry model as :func:`build_model` would build it, without torch.
+
+    Args:
+        key: Registry key.
+        env: Environment holding the ``MIRAGE_*_MODEL_PATH`` variables.
+
+    Returns:
+        The record ``LocalModelBackend.identity()`` returns for that model.
+    """
+    entry = REGISTRY[key]
+    model_id, revision = parse_model_name(_model_name(entry, env))
+    return {"provider": "local", "class_name": entry.cache_name, "model_id": model_id,
+            "revision": revision, "quantization": "none", "dtype": entry.dtype}
 
 
 def build_model(model_key: Optional[str] = None, **overrides) -> Any:
     """Construct the model selected by ``model_key`` or ``$MIRAGE_VL_MODEL``.
 
     Args:
-        model_key: Registry key (see ``_REGISTRY``); None
+        model_key: Registry key (see ``REGISTRY``); None
             reads ``MIRAGE_VL_MODEL`` (default ``"paligemma"``).
         **overrides: Constructor kwargs; ``model_name`` defaults to the
             model's ``MIRAGE_*_MODEL_PATH`` environment variable.
@@ -49,10 +89,10 @@ def build_model(model_key: Optional[str] = None, **overrides) -> Any:
     Returns:
         A constructed (not yet loaded) model instance.
     """
-    key = _resolve_key(model_key)
-    module_name, class_name, env_var, default_name = _REGISTRY[key]
+    entry = REGISTRY[_resolve_key(model_key)]
+    module_name, class_name = entry.target.split(":")
     model_cls = getattr(importlib.import_module(module_name), class_name)
-    overrides.setdefault("model_name", os.getenv(env_var, default_name))
+    overrides.setdefault("model_name", _model_name(entry, os.environ))
     return model_cls(**overrides)
 
 

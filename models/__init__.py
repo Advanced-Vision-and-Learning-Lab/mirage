@@ -9,6 +9,9 @@ _MODULES = {
     "PaligemmaModel": "paligemma",
     "Qwen2VLModel": "qwen2vl",
     "HFChatVLM": "hf_chat",
+    "Gemma4": "gemma4",
+    "Ministral3": "ministral3",
+    "AyaVision": "aya_vision",
 }
 
 __all__ = list(_MODULES)
