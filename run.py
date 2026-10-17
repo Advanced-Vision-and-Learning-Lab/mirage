@@ -75,13 +75,15 @@ def _ground_truth(sample):
 
 
 def _run_dataset_metric(args):
+    from predict.cache import SQLiteResponseCache
     from predict.factory import build_predictor
 
     loader, all_objects = _load_dataset(args)
     samples = list(loader)
     if not samples:
         raise RuntimeError("No images were loaded. Check the annotation and image paths.")
-    model = build_predictor(args.model)
+    # --cache-only opens the prediction cache read-only: a replay never writes to it, and a miss raises.
+    model = build_predictor(args.model, cache=SQLiteResponseCache(readonly=True) if args.cache_only else None)
     if not args.cache_only:
         model.load_model()
     try:
