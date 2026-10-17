@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, Union, Literal
 from pathlib import Path
 from PIL import Image
 
-from .base import BaseModel, ModelLoadError, ModelNotLoadedError, InvalidInputError
+from .base import BaseModel, ModelLoadError, InvalidInputError
 
 
 class Qwen2VLModel(BaseModel):
