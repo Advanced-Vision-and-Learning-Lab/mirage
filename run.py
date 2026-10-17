@@ -98,7 +98,7 @@ def _evaluate(args, model, loader, all_objects):
     if args.metric == "rope":
         from metrics.rope import ROPEMetric
 
-        metric = ROPEMetric(num_objects=5, class_list=all_objects)
+        metric = ROPEMetric(num_objects=5)
         metric.run(loader, model, n=args.samples)
         return metric.format_results()
 
