@@ -251,13 +251,12 @@ def pope_records(root: Path, ds: str) -> Dict[str, List[Tuple[str, str, bool, bo
 
 
 def rope_records(root: Path, ds: str) -> Dict[str, List[Tuple[str, int, str, bool]]]:
-    from metrics.rope import ROPEMetric, _rope_match_strict, judged_answer
+    from metrics.rope import ROPEMetric, judged_answer
     from predict.identity import hash_image
 
     loader = _loader(root, ds, 3000 if ds == "coco" else 2000)
-    names = loader.get_category_names() if ds == "coco" else loader.get_object_names()
     boxes = loader.extract_bboxes_for_rope(num_objects=5)
-    rope = ROPEMetric(num_objects=5, class_list=names)
+    rope = ROPEMetric(num_objects=5)
     questions = []
     for s in [s for s in loader if str(s["image_id"]) in boxes][:N_IMAGES]:
         bxs = boxes[str(s["image_id"])]
@@ -272,7 +271,7 @@ def rope_records(root: Path, ds: str) -> Dict[str, List[Tuple[str, int, str, boo
             resp = got.get((h, rope.generate_prompt_for_box(b)))
             if resp is not None:
                 pred = rope.parse_single_response(resp)
-                recs.append((item, b, judged_answer(resp, pred), _rope_match_strict(pred, gt)))
+                recs.append((item, b, judged_answer(resp, pred), rope.strict(pred, gt)))
         out[model] = recs
     return out
 
