@@ -1,7 +1,7 @@
 import random
 import re
 from types import MappingProxyType
-from typing import Dict, Iterable, List, Any, Tuple, Optional
+from typing import Dict, Iterable, List, Any, Tuple
 from collections import Counter
 
 from .base_metric import SAMPLES, BaseMetric, ground_truth, object_names
@@ -13,12 +13,13 @@ QUESTION_RE = re.compile(r"Is there an?\s+(.+?)\s+in the image", re.I)
 def _binary(rows: List[Tuple[bool, bool]]) -> Dict[str, float]:
     tp = sum(1 for l, y in rows if l and y); tn = sum(1 for l, y in rows if not l and not y)
     fp = sum(1 for l, y in rows if not l and y); fn = sum(1 for l, y in rows if l and not y)
+    n = len(rows)
     prec = tp / (tp + fp) if tp + fp else 0.0
     rec = tp / (tp + fn) if tp + fn else 0.0
     bal = ((tp / (tp + fn) if tp + fn else 0.0) + (tn / (tn + fp) if tn + fp else 0.0)) / 2
-    return {"accuracy": (tp + tn) / len(rows), "balanced_accuracy": bal,
+    return {"accuracy": (tp + tn) / n if n else 0.0, "balanced_accuracy": bal,
             "f1": 2 * prec * rec / (prec + rec) if prec + rec else 0.0,
-            "yes_ratio": (tp + fp) / len(rows), "questions": len(rows)}
+            "yes_ratio": (tp + fp) / n if n else 0.0, "questions": n}
 
 
 class POPEMetric(BaseMetric):
@@ -26,39 +27,30 @@ class POPEMetric(BaseMetric):
     Precision Of Perception Evaluation (POPE) metric.
 
     POPE evaluates a model's ability to accurately determine whether objects
-    are present in an image by asking yes/no questions.
+    are present in an image by asking yes/no questions. The "no" objects follow
+    the random protocol: drawn from the dataset vocabulary minus the image's objects.
     """
 
-    MODES = ["random", "popular"]
     GEN = MappingProxyType({"max_new_tokens": 10, "do_sample": False})
 
     def __init__(self,
-                 mode: str = "random",
                  yes_ratio: float = 0.5,
                  num_questions_per_image: int = QUESTIONS_PER_IMAGE,
-                 popular_objects_list: Optional[List[str]] = None,
                  seed: int = 42):
         """
         Initialize the POPE metric.
 
         Args:
-            mode: Evaluation mode ("random" or "popular")
             yes_ratio: Ratio of questions expecting "yes" answers
             num_questions_per_image: Number of questions to generate per image
-            popular_objects_list: List of popular objects to use in "popular" mode
-            seed: RNG seed for negative-object sampling, so the generated
+            seed: RNG seed for the yes- and no-object draws, so the generated
                 question set is reproducible across runs (Li et al. 2023
                 fixes the protocol). Set to None to use process-global random.
         """
         super().__init__("pope")
 
-        if mode not in self.MODES:
-            raise ValueError(f"Mode must be one of {self.MODES}")
-
-        self.mode = mode
         self.yes_ratio = yes_ratio
         self.num_questions_per_image = num_questions_per_image
-        self.popular_objects = popular_objects_list or []
         self.seed = seed
         self._rng = random.Random(seed) if seed is not None else random
 
@@ -92,16 +84,10 @@ class POPEMetric(BaseMetric):
             article = "an" if obj and obj[0].lower() in "aeiou" else "a"
             questions.append((f"You are required to answer the following question with either a yes or no. Is there {article} {obj} in the image?", True))
 
-        # Generate "no" questions
+        # Generate "no" questions from objects not in the image
         # Sorted so the seeded draw does not depend on candidate order —
         # callers often pass set-derived lists whose order changes per process.
-        no_candidates = []
-        if self.mode == "random":
-            # Random mode: use random objects not in the image
-            no_candidates = sorted(obj for obj in all_possible_objects if obj not in image_objects)
-        elif self.mode == "popular":
-            # Popular mode: use popular objects not in the image
-            no_candidates = sorted(obj for obj in self.popular_objects if obj not in image_objects)
+        no_candidates = sorted(obj for obj in all_possible_objects if obj not in image_objects)
 
         if len(no_candidates) < num_no:
             # If we don't have enough candidates, sample with replacement
@@ -144,7 +130,7 @@ class POPEMetric(BaseMetric):
     def run(self, loader, model, n: int = SAMPLES) -> List[Tuple[str, str, bool, bool]]:
         """Ask the first ``n`` annotated images their yes/no questions, then evaluate.
 
-        Per image, the "yes" objects are a seeded draw (seed 42, keyed by image
+        Per image, the "yes" objects are a seeded draw (``self.seed``, keyed by image
         id) from its sorted annotations, and the "no" objects come from the
         dataset vocabulary. Read the scores with :meth:`format_results`.
 
@@ -160,7 +146,7 @@ class POPEMetric(BaseMetric):
         asked = []
         for sample in [s for s in loader if ground_truth(s)][:n]:
             objects, image = ground_truth(sample), loader.load_image(sample)
-            yes = sample_for_image(sorted(objects), min(n_yes, len(objects)), sample["image_id"], seed=42)
+            yes = sample_for_image(sorted(objects), min(n_yes, len(objects)), sample["image_id"], seed=self.seed)
             questions = self.generate_questions(objects, yes, all_objects)
             asked += [(sample, q, expected, model.generate(image=image, prompt=q, **self.GEN))
                       for q, expected in questions]
@@ -229,7 +215,7 @@ class POPEMetric(BaseMetric):
             "accuracy": accuracy,
             "yes_accuracy": yes_accuracy,
             "no_accuracy": no_accuracy,
-            "mode": self.mode,
+            "mode": "random",
         }
 
         return self.results
@@ -247,7 +233,7 @@ class POPEMetric(BaseMetric):
             - object_accuracy: Per-object accuracy scores
             - overall_accuracy: Overall accuracy across all predictions
             - num_questions: Total number of questions asked
-            - mode: Evaluation mode used (random/popular)
+            - mode: the negative-sampling protocol ("random")
         """
         # Calculate per-object accuracy
         object_accuracy = {}
@@ -288,7 +274,7 @@ class POPEMetric(BaseMetric):
                 "recall": recall,
                 "f1_score": f1_score,
                 "confusion_matrix": confusion_matrix,
-                "mode": self.mode,
+                "mode": "random",
                 "yes_ratio": yes_ratio
             },
             "object_accuracy": object_accuracy,
@@ -298,7 +284,7 @@ class POPEMetric(BaseMetric):
             "f1_score": f1_score,
             "yes_ratio": yes_ratio,
             "num_questions": len(self.questions),
-            "mode": self.mode
+            "mode": "random"
         }
 
     @staticmethod

@@ -349,10 +349,10 @@ class ROPEMetric(BaseMetric):
             raise MissingVerdicts("ROPE", missing)
         k = Counter(verdicts[(item, f"{box}|{ans}")] for item, box, ans, _ in records)
         boxes, graded = len(records), k["correct"] + k["related"] + k["wrong"]
-        correct = k["correct"] / graded
-        return {"raw": sum(strict for *_, strict in records) / boxes, "head": correct,
-                "related": (k["correct"] + k["related"]) / graded - correct,
-                "correct_incl_unsure_as_wrong": correct * (boxes - k["unsure"]) / boxes,
+        correct = k["correct"] / graded if graded else 0.0
+        return {"raw": sum(strict for *_, strict in records) / boxes if boxes else 0.0, "head": correct,
+                "related": (k["correct"] + k["related"]) / graded - correct if graded else 0.0,
+                "correct_incl_unsure_as_wrong": correct * (boxes - k["unsure"]) / boxes if boxes else 0.0,
                 "n_raw": boxes, "n_head": boxes - k["unsure"]}
 
     def evaluate_predictions(

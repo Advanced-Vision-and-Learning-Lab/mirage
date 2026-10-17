@@ -141,7 +141,7 @@ def _evaluate(args, model, loader, judge, evaluator=None):
     if args.metric == "pope":
         from metrics.pope import POPEMetric
 
-        metric = POPEMetric(mode="random", num_questions_per_image=args.pope_questions)
+        metric = POPEMetric(num_questions_per_image=args.pope_questions)
         records = metric.run(loader, model, n=args.samples)
         return {**metric.format_results(), **_judged(lambda: metric.score(records, judge("pope", records, ds=ds)))}
 

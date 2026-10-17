@@ -177,17 +177,6 @@ def _build_coco_synonym_structures() -> Tuple[List[str], Dict[str, str], Dict[st
 # Pre-built module-level lookup tables
 _COCO_OBJECTS, _COCO_INVERSE_SYNONYMS, _COCO_DOUBLE_WORDS = _build_coco_synonym_structures()
 
-# Words after which "orange" is still the fruit ("an orange on the table",
-# "orange and banana"); anything else alphabetic makes it a color ("orange cat").
-_ORANGE_FRUIT_FOLLOWERS = {
-    'and', 'or', 'in', 'on', 'with', 'of', 'is', 'are', 'was', 'were', 'that',
-    'which', 'next', 'to', 'at', 'by', 'the', 'a', 'an', 'for', 'from', 'as',
-    'has', 'have', 'had', 'into', 'onto', 'sitting', 'lying', 'placed', 'near',
-    'beside', 'under', 'over', 'inside', 'juice', 'fruit', 'slice', 'slices',
-    'peel', 'wedge', 'wedges', 'half', 'halves',
-}
-
-
 # Visual Genome names that are not objects (NLTK stopwords are added); without them
 # CHAIR counts every caption containing 'the' or 'red' as a mention.
 VG_NON_OBJECTS = {
@@ -237,32 +226,17 @@ class ChairMetric(BaseMetric):
     - Recall: Percentage of ground-truth objects that are mentioned in captions
     """
 
-    def __init__(
-        self,
-        object_synsets: Optional[Dict[str, List[str]]] = None,
-        use_coco_synonyms: bool = True,
-        color_guard: bool = False,
-    ):
+    def __init__(self, object_synsets: Optional[Dict[str, List[str]]] = None):
         """
         Initialize the CHAIR metric.
 
         Args:
             object_synsets: Dictionary mapping canonical object names to lists of
-                synonyms. If provided, these are used instead of built-in COCO
-                synonyms.  Example:
+                synonyms. If provided, these are used instead of the built-in COCO
+                synonyms from the original CHAIR paper (the default).  Example:
                 {"dog": ["dog", "puppy", "canine"], "car": ["car", "vehicle"]}
-            use_coco_synonyms: When True (default) and object_synsets is None,
-                use the built-in COCO synonym dictionary from the original CHAIR
-                paper. Set to False for exact-match mode with no synonyms.
-            color_guard: Skip the token ``orange`` when it is used as a color
-                (followed by an ordinary word: "orange cat", "orange walls")
-                rather than the COCO fruit class. Off by default, which is the
-                canonical CHAIR behaviour and what the published (judged) scores use.
-                In the September 2026 COCO runs ~70% of "orange" hallucinations
-                per Qwen cell were the color.
         """
         super().__init__("chair")
-        self.color_guard = color_guard
 
         # ----- synonym / object structures -----
         if object_synsets is not None:
@@ -275,14 +249,10 @@ class ChairMetric(BaseMetric):
             self.inverse_synonym_dict = inverse
             self._mscoco_objects_set: Set[str] = set(inverse.keys())
             self.double_word_dict: Dict[str, str] = {}
-        elif use_coco_synonyms:
+        else:
             self.inverse_synonym_dict = _COCO_INVERSE_SYNONYMS
             self._mscoco_objects_set = set(_COCO_OBJECTS)
             self.double_word_dict = _COCO_DOUBLE_WORDS
-        else:
-            self.inverse_synonym_dict = {}
-            self._mscoco_objects_set = set()
-            self.double_word_dict = {}
 
         # ----- accumulators -----
         self.total_sentences = 0
@@ -301,10 +271,8 @@ class ChairMetric(BaseMetric):
         """CHAIR as scored for ``ds``: COCO synonyms, or exact names from the Visual Genome vocabulary."""
         if ds == "vg":
             vocab = vg_vocabulary(loader.get_object_names())
-            chair = cls(object_synsets={n: [n] for n in vocab}, use_coco_synonyms=False)
-        else:
-            chair = cls(use_coco_synonyms=True)
-        return chair
+            return cls(object_synsets={n: [n] for n in vocab})
+        return cls()
 
     def run(self, loader, model, n: int = SAMPLES, gen=CAPTION_GEN) -> List[Dict]:
         """Caption the first ``n`` annotated images, evaluate them (plain CHAIR, see
@@ -375,13 +343,6 @@ class ChairMetric(BaseMetric):
         # Only call _singularize on tokens not already recognized, since
         # singularization is relatively expensive.
         raw_tokens = nltk.word_tokenize(caption.lower())
-        if self.color_guard:
-            raw_tokens = [
-                t for i, t in enumerate(raw_tokens)
-                if not (t == 'orange' and i + 1 < len(raw_tokens)
-                        and raw_tokens[i + 1].isalpha()
-                        and raw_tokens[i + 1] not in _ORANGE_FRUIT_FOLLOWERS)
-            ]
         words = []
         for w in raw_tokens:
             if w in self._mscoco_objects_set:
@@ -461,7 +422,7 @@ class ChairMetric(BaseMetric):
         """Object mentions of ``caption`` with their part of speech in context (judged CHAIR).
 
         Tokens, singularization and double words follow :meth:`caption_to_words`
-        (without the toilet-seat and colour rules). Each mention records
+        (without the toilet-seat rule). Each mention records
         ``word`` (canonical), ``tok`` (as written), ``pos`` and ``noun`` (NLTK
         tag in context), ``hall`` (not in the annotations) and, for
         hallucinated words, ``rel``/``rel_gt``: how the word relates to an

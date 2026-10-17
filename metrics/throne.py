@@ -205,7 +205,7 @@ class ThroneMetric(BaseMetric):
         evaluator_dtype: Weight dtype name for the evaluator ('bfloat16',
             'float16', 'float32'). Part of the cache identity, so it must not
             depend on the device: a CPU replay of a GPU run has to produce the
-            same keys. Default ``$MIRAGE_THRONE_EVALUATOR_DTYPE`` or bfloat16.
+            same keys. Default bfloat16.
         evaluator_cache: Cache for evaluator answers; None uses
             :func:`evaluator_cache_path`.
         distractor_ratio: Ask about every ground-truth category plus
@@ -216,13 +216,12 @@ class ThroneMetric(BaseMetric):
             one; COCO's native ratio is ~38. Recall is unaffected because
             every ground-truth category is still asked. The draw is seeded
             from the caption, so it is reproducible without an image id.
-            Default ``$MIRAGE_THRONE_DISTRACTOR_RATIO``, else 38; 0 asks about
-            the whole category set.
-        evaluator_max_tokens: Evaluator input window in tokens (default:
-            ``$MIRAGE_THRONE_EVALUATOR_MAX_TOKENS``, else 1024). Captions longer
-            than the window minus the prompt are trimmed from the end, so the
-            evaluator never sees their tail. It is part of the evaluator cache
-            key, so changing it re-asks every question.
+            Default 38; 0 asks about the whole category set.
+        evaluator_max_tokens: Evaluator input window in tokens (default
+            1024). Captions longer than the window minus the prompt are
+            trimmed from the end, so the evaluator never sees their tail. It
+            is part of the evaluator cache key, so changing it re-asks every
+            question.
         evaluator: Optional ``fn(prompts) -> texts`` used instead of FLAN-T5
             (no weights load). Its answers are keyed under class_name
             ``"InjectedEvaluator"``, so they never mix with real evaluator rows.
@@ -262,8 +261,7 @@ class ThroneMetric(BaseMetric):
         self._object_categories = sorted(
             {c.lower() for c in (object_categories or COCO_80_CATEGORIES)}
         )
-        dtype_name = (evaluator_dtype or os.environ.get("MIRAGE_THRONE_EVALUATOR_DTYPE")
-                      or "bfloat16").lower()
+        dtype_name = (evaluator_dtype or "bfloat16").lower()
         if dtype_name not in _DTYPES:
             raise ValueError(f"evaluator_dtype must be one of {sorted(_DTYPES)}, got {dtype_name!r}")
         self._evaluator_dtype_name = dtype_name
@@ -275,13 +273,7 @@ class ThroneMetric(BaseMetric):
         self.dataset: Optional[str] = None  # set by for_dataset; "vg" makes score() require is_present
         self._gt: List[List[str]] = []  # raw ground-truth lists, for support()
         self._truncated_inputs = 0
-        env_ratio = os.environ.get("MIRAGE_THRONE_DISTRACTOR_RATIO")
-        if distractor_ratio is None and env_ratio:
-            distractor_ratio = float(env_ratio)
         self._distractor_ratio = DISTRACTOR_RATIO if distractor_ratio is None else distractor_ratio
-        env_window = os.environ.get("MIRAGE_THRONE_EVALUATOR_MAX_TOKENS")
-        if evaluator_max_tokens is None and env_window:
-            evaluator_max_tokens = int(env_window)
         self._max_input_tokens = evaluator_max_tokens or _EVALUATOR_MAX_TOKENS
         self._questions_per_image: List[int] = []
         self._num_question_formats = min(

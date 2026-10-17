@@ -168,7 +168,7 @@ def rebuild(records: Dict[str, Dict], store: Optional[VerdictStore] = None) -> T
 
     store = store or VerdictStore.open()
     mentions, rope_v = store.verdicts("mentions"), store.verdicts("rope")
-    pope, rope = POPEMetric(mode="random", num_questions_per_image=6), ROPEMetric(num_objects=5)
+    pope, rope = POPEMetric(num_questions_per_image=6), ROPEMetric(num_objects=5)
     table, committee = {}, {}
     for ds in DATASETS:
         rec = records[ds]
