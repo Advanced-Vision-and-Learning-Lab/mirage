@@ -194,7 +194,7 @@ class POPEMetric(BaseMetric):
             labels.append(expected)
 
             # Extract object from canonical "Is there a/an {obj} in the image?" prompt
-            m = re.search(r"Is there an?\s+(.+?)\s+in the image", question, re.IGNORECASE)
+            m = QUESTION_RE.search(question)
             object_name = m.group(1).strip() if m else question
             object_counter[object_name] += 1
             if prediction == expected:

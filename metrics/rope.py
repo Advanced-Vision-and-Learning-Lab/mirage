@@ -88,6 +88,7 @@ def judged_answer(response: str, pred: str) -> str:
             alts.append(" ".join(noun))
     return _judge_norm((alts or [pred])[0]) or pred
 
+
 def _rects_overlap(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> bool:
     """True when two (x0, y0, x1, y1) rectangles share any area."""
     return not (a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1])
