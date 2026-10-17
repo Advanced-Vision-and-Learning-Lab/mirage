@@ -15,7 +15,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from metrics.base_metric import CAPTION_GEN, SAMPLES, BaseMetric, caption_images, object_names, pool_objects
+from metrics.base_metric import CAPTION_GEN, SAMPLES, BaseMetric, caption_images, object_names
 from metrics.pope import QUESTIONS_PER_IMAGE
 from predict.factory import REGISTRY as MODEL_REGISTRY
 
@@ -39,11 +39,12 @@ def _parse_args():
     p.add_argument("--output", type=Path, default=None, help="JSON results path")
     p.add_argument("--nope-turn2", type=Path, help="NOPE turn-two results JSON")
     p.add_argument("--nope-turn1", type=Path, help="NOPE turn-one results JSON")
-    p.add_argument("--throne-evaluator", default=os.getenv("MIRAGE_THRONE_EVALUATOR_MODEL", "google/flan-t5-base"))
+    p.add_argument("--throne-evaluator", default=None,
+                   help="evaluator HF id or snapshot path (default: $MIRAGE_THRONE_EVALUATOR_MODEL, else google/flan-t5-xl)")
     p.add_argument("--throne-distractor-ratio", type=float, default=None,
-                   help="distractors per ground-truth object (default: full vocabulary)")
+                   help="distractors per ground-truth object (default 38; 0 asks about the full vocabulary)")
     p.add_argument("--throne-evaluator-max-tokens", type=int, default=None,
-                   help="evaluator input window; longer captions are trimmed (default 512)")
+                   help="evaluator input window; longer captions are trimmed (default 1024)")
     p.add_argument("--cache-only", action="store_true", help="never load the model; fail on a cache miss")
     p.add_argument("--llama-model", default=os.getenv("MIRAGE_LLAMA_MODEL_PATH"))
     p.add_argument("--verbose", action="store_true")
@@ -116,10 +117,10 @@ def _evaluate(args, model, loader, all_objects):
         from metrics.throne import ThroneMetric
 
         # VG THRONE asks about the pool's object names, not all of objects.json.
-        categories = all_objects if args.dataset == "coco" else pool_objects(loader)
-        metric = ThroneMetric(evaluator_model_name=args.throne_evaluator, object_categories=categories,
-                              distractor_ratio=args.throne_distractor_ratio,
-                              evaluator_max_tokens=args.throne_evaluator_max_tokens)
+        metric = ThroneMetric.for_dataset(DS[args.dataset], loader, evaluator_model_name=args.throne_evaluator,
+                                          distractor_ratio=args.throne_distractor_ratio,
+                                          evaluator_max_tokens=args.throne_evaluator_max_tokens,
+                                          cache_only=args.cache_only)
         metric.run(loader, model, n=args.samples, gen=gen)
     elif args.metric == "faithscore":
         from metrics.faithscore import FaithScoreMetric

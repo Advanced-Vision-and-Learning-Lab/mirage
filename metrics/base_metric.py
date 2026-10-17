@@ -4,6 +4,8 @@ from typing import Dict, List, Any, Mapping, Tuple, Union, Optional
 import numpy as np
 
 SAMPLES = 500  # images scored per cell: run.py --samples default
+BETA2 = 0.25  # F-beta weight: beta = 0.5 favours precision
+MIN_WORDS = 5  # captions with fewer words name no objects in the judged scores
 # Caption prompts by dataset key; their bytes are part of the prediction cache key.
 # The protocol constants below are read-only: changing one in place would change cache keys.
 CAPTION_PROMPTS = MappingProxyType({
@@ -21,6 +23,10 @@ CAPTION_PROMPTS = MappingProxyType({
     ),
 })
 CAPTION_GEN = MappingProxyType({"max_new_tokens": 512, "do_sample": False})
+
+
+def fbeta(p: float, r: float, beta2: float = BETA2) -> float:
+    return (1 + beta2) * p * r / (beta2 * p + r) if p + r else 0.0
 
 
 def ground_truth(sample: Dict[str, Any]) -> List[str]:

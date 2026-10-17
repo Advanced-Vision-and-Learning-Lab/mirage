@@ -22,17 +22,15 @@ import logging
 import os
 import random
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from collections import Counter
-
-import torch
 
 from predict.backends import CallableBackend
 from predict.cache import SQLiteResponseCache, default_cache_path
 from predict.identity import parse_model_name
 from predict.predictor import Predictor
 
-from .base_metric import BaseMetric
+from .base_metric import MIN_WORDS, BaseMetric, fbeta, object_names, pool_objects
 
 logger = logging.getLogger(__name__)
 
@@ -91,13 +89,22 @@ _PLURAL_CATEGORIES = {"skis", "scissors"}
 # raw generate call and as the CallableBackend defaults that enter cache keys.
 _EVALUATOR_GEN_CONFIG = {"max_new_tokens": 5, "do_sample": False}
 
+# Published protocol defaults. The evaluator id is a bare HF id (cache keys say
+# "unpinned"); set MIRAGE_THRONE_EVALUATOR_MODEL to a snapshot path to pin it.
+EVALUATOR = "google/flan-t5-xl"
+DISTRACTOR_RATIO = 38.0  # COCO's native distractor-to-positive ratio
+
 # FLAN-T5 was trained at 512 tokens. The evaluator prompt is
 # "Text: {caption}\n\n{instruction}\n\n{question}"; if it is longer than the
 # window only the caption is trimmed (from its end) so the question always
 # survives. T5 has no absolute positions, so a longer window is valid.
-_EVALUATOR_MAX_TOKENS = 512
+_EVALUATOR_MAX_TOKENS = 1024
 
-_DTYPES = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
+# Evaluator dtype name -> the str(torch.dtype) recorded in the cache identity; torch loads with the weights.
+_DTYPES = {"bfloat16": "torch.bfloat16", "float16": "torch.float16", "float32": "torch.float32"}
+
+# Visual Genome class-wise scores average only categories annotated in at least this many images.
+MIN_SUPPORT = 5
 
 
 def evaluator_cache_path() -> Path:
@@ -125,6 +132,48 @@ def _get_article(name: str) -> str:
     return "a"
 
 
+def classwise(details: List[Dict], support: Counter, min_support: Optional[int] = None,
+              min_words: Optional[int] = MIN_WORDS,
+              is_present: Optional[Callable[[int, str], bool]] = None) -> Dict[str, float]:
+    """THRONE class-wise P and R (macro over categories), then F0.5, on ``per_image_details``.
+
+    ``min_words``: shorter captions predict nothing. ``is_present(i, category)``: a predicted
+    category verified present in image ``i`` counts as true (completed labels). Categories
+    with fewer than ``min_support`` annotated images (``support``) are left out of the average.
+    """
+    tp, fp, fn = Counter(), Counter(), Counter()
+    for i, d in enumerate(details):
+        dq = set(d["disqualified_objects"])
+        short = min_words is not None and len(d["caption"].split()) < min_words
+        pred = set() if short else set(d["predicted_objects"]) - dq
+        truth = set(d["gt_objects"]) - dq
+        if is_present is not None:
+            truth |= {c for c in pred if is_present(i, c)}
+        for c in pred & truth: tp[c] += 1
+        for c in pred - truth: fp[c] += 1
+        for c in truth - pred: fn[c] += 1
+    cats = set(tp) | set(fp) | set(fn)
+    if min_support is not None:
+        cats &= {c for c, n in support.items() if n >= min_support}
+    cats = sorted(cats)
+    ps = [tp[c] / (tp[c] + fp[c]) for c in cats if tp[c] + fp[c]]
+    rs = [tp[c] / (tp[c] + fn[c]) for c in cats if tp[c] + fn[c]]
+    p = sum(ps) / len(ps) if ps else 0.0
+    r = sum(rs) / len(rs) if rs else 0.0
+    return {"head": fbeta(p, r), "P": p, "R": r, "n_head": len(cats)}
+
+
+def completed_labels(vp: List[set]) -> Callable[[int, str], bool]:
+    """``is_present`` for :func:`classwise` from per-image verified-present words (completed labels).
+
+    A category counts as present in image ``i`` when it is one of ``vp[i]`` or an exact,
+    plural or phrase variant of one.
+    """
+    from .chair import variant_of_gt
+
+    return lambda i, c: c in vp[i] or variant_of_gt(c, list(vp[i]))[0] in ("exact", "plural", "phrase")
+
+
 class ThroneMetric(BaseMetric):
     """
     THRONE hallucination metric using LLM-based abstractive question answering.
@@ -141,14 +190,17 @@ class ThroneMetric(BaseMetric):
         4. Compare predicted set vs ground-truth for precision/recall/F-scores
 
     Args:
-        evaluator_model_name: HuggingFace model name for the evaluator LM.
+        evaluator_model_name: HF id or snapshot path of the evaluator LM
+            (default ``$MIRAGE_THRONE_EVALUATOR_MODEL``, else
+            google/flan-t5-xl). Its id and revision are in the cache key.
         object_categories: List of object category names to check against.
             Defaults to COCO 80 categories.
         num_question_formats: Number of question format pairs to use (1-8).
             Default 3 as in the paper.
         voting_threshold: Fraction of votes needed to mark an object as
             "present". None means unanimous voting. Default None.
-        device: Device for evaluator model ('cuda', 'cpu', or None for auto).
+        device: Device for evaluator model ('cuda', 'cpu', or None to pick
+            cuda when available, once the weights load).
         batch_size: Batch size for evaluator inference.
         evaluator_dtype: Weight dtype name for the evaluator ('bfloat16',
             'float16', 'float32'). Part of the cache identity, so it must not
@@ -156,7 +208,7 @@ class ThroneMetric(BaseMetric):
             same keys. Default ``$MIRAGE_THRONE_EVALUATOR_DTYPE`` or bfloat16.
         evaluator_cache: Cache for evaluator answers; None uses
             :func:`evaluator_cache_path`.
-        distractor_ratio: When set, ask about every ground-truth category plus
+        distractor_ratio: Ask about every ground-truth category plus
             ``round(ratio * len(gt))`` randomly chosen others, instead of the
             whole category set. Precision is governed by the distractor-to-
             positive ratio, so a fixed ratio is what makes the number
@@ -164,16 +216,28 @@ class ThroneMetric(BaseMetric):
             one; COCO's native ratio is ~38. Recall is unaffected because
             every ground-truth category is still asked. The draw is seeded
             from the caption, so it is reproducible without an image id.
+            Default ``$MIRAGE_THRONE_DISTRACTOR_RATIO``, else 38; 0 asks about
+            the whole category set.
         evaluator_max_tokens: Evaluator input window in tokens (default:
-            ``$MIRAGE_THRONE_EVALUATOR_MAX_TOKENS``, else 512). Captions longer
+            ``$MIRAGE_THRONE_EVALUATOR_MAX_TOKENS``, else 1024). Captions longer
             than the window minus the prompt are trimmed from the end, so the
             evaluator never sees their tail. It is part of the evaluator cache
             key, so changing it re-asks every question.
+        evaluator: Optional ``fn(prompts) -> texts`` used instead of FLAN-T5
+            (no weights load). Its answers are keyed under class_name
+            ``"InjectedEvaluator"``, so they never mix with real evaluator rows.
+        tokenizer: Optional tokenizer for trimming captions to the window;
+            None loads the evaluator's own tokenizer.
+        cache_only: Replay mode. The evaluator cache opens read-only, the
+            weights never load, and a cache miss raises. An
+            ``evaluator_cache`` passed in is used as given.
+        min_support: For :meth:`score`: categories annotated in fewer images
+            are left out of the class-wise average (None keeps all).
     """
 
     def __init__(
         self,
-        evaluator_model_name: str = "google/flan-t5-base",
+        evaluator_model_name: Optional[str] = None,
         object_categories: Optional[List[str]] = None,
         num_question_formats: int = 3,
         voting_threshold: Optional[float] = None,
@@ -183,10 +247,15 @@ class ThroneMetric(BaseMetric):
         evaluator_cache: Optional[SQLiteResponseCache] = None,
         distractor_ratio: Optional[float] = None,
         evaluator_max_tokens: Optional[int] = None,
+        evaluator: Optional[Callable[[List[str]], List[str]]] = None,
+        tokenizer: Any = None,
+        cache_only: bool = False,
+        min_support: Optional[int] = None,
     ):
         super().__init__("throne")
 
-        self._evaluator_model_name = evaluator_model_name
+        self._evaluator_model_name = (evaluator_model_name or os.environ.get("MIRAGE_THRONE_EVALUATOR_MODEL")
+                                      or EVALUATOR)
         # Sorted: callers often pass set-derived lists whose order changes per
         # process, and predicted/disqualified lists follow category order, so
         # an unsorted list makes the results JSON differ between identical runs.
@@ -199,11 +268,17 @@ class ThroneMetric(BaseMetric):
             raise ValueError(f"evaluator_dtype must be one of {sorted(_DTYPES)}, got {dtype_name!r}")
         self._evaluator_dtype_name = dtype_name
         self._evaluator_cache = evaluator_cache
+        self._evaluator = evaluator
+        self._tokenizer = tokenizer
+        self._cache_only = cache_only
+        self.min_support = min_support
+        self.dataset: Optional[str] = None  # set by for_dataset; "vg" makes score() require is_present
+        self._gt: List[List[str]] = []  # raw ground-truth lists, for support()
         self._truncated_inputs = 0
         env_ratio = os.environ.get("MIRAGE_THRONE_DISTRACTOR_RATIO")
         if distractor_ratio is None and env_ratio:
             distractor_ratio = float(env_ratio)
-        self._distractor_ratio = distractor_ratio
+        self._distractor_ratio = DISTRACTOR_RATIO if distractor_ratio is None else distractor_ratio
         env_window = os.environ.get("MIRAGE_THRONE_EVALUATOR_MAX_TOKENS")
         if evaluator_max_tokens is None and env_window:
             evaluator_max_tokens = int(env_window)
@@ -215,13 +290,7 @@ class ThroneMetric(BaseMetric):
         )
         self._voting_threshold = voting_threshold
         self._batch_size = batch_size
-
-        if device is not None:
-            self._device = device
-        elif torch.cuda.is_available():
-            self._device = "cuda"
-        else:
-            self._device = "cpu"
+        self._device = device
 
         self._evaluator_model = None
         self._evaluator_tokenizer = None
@@ -234,57 +303,84 @@ class ThroneMetric(BaseMetric):
         self._class_fp: Counter = Counter()
         self._class_fn: Counter = Counter()
 
+    @classmethod
+    def for_dataset(cls, ds: str, loader=None, **kw) -> "ThroneMetric":
+        """THRONE as scored for ``ds`` ("coco" or "vg").
+
+        COCO asks about its 80 categories and averages over every category.
+        Visual Genome asks about the object names annotated anywhere in the
+        loaded pool (not all of objects.json) and averages over categories
+        with at least ``MIN_SUPPORT`` annotated images. ``kw`` goes to the
+        constructor.
+        """
+        if ds not in ("coco", "vg"):
+            raise ValueError(f"unknown dataset {ds!r}; expected 'coco' or 'vg'")
+        if loader is not None:
+            kw["object_categories"] = object_names(loader) if ds == "coco" else pool_objects(loader)
+        metric = cls(min_support=MIN_SUPPORT if ds == "vg" else None, **kw)
+        metric.dataset = ds
+        return metric
+
     # ------------------------------------------------------------------
     # Evaluator model lifecycle
     # ------------------------------------------------------------------
 
     def load_evaluator(self) -> None:
-        """Set up the cached evaluator; model weights load on the first cache miss."""
+        """Set up the cached evaluator; model weights load on the first cache miss.
+
+        Under ``cache_only`` the weights never load, so a miss raises.
+        """
         model_id, revision = parse_model_name(self._evaluator_model_name)
         cache = self._evaluator_cache
         if cache is None and os.environ.get("MIRAGE_CACHE_DISABLE") != "1":
-            cache = SQLiteResponseCache(evaluator_cache_path(), secondary_indexes=False)
+            cache = (SQLiteResponseCache(evaluator_cache_path(), readonly=True) if self._cache_only
+                     else SQLiteResponseCache(evaluator_cache_path(), secondary_indexes=False))
+        injected = self._evaluator is not None
         self._predictor = Predictor(CallableBackend(
             fn=self._answer_bundles,
             identity={
                 "provider": "local-callable",
-                "class_name": "ThroneEvaluator",
+                "class_name": "InjectedEvaluator" if injected else "ThroneEvaluator",
                 "model_id": model_id,
                 "revision": revision,
-                "dtype": str(self._evaluator_dtype()),
+                "dtype": _DTYPES[self._evaluator_dtype_name],
                 "max_input_tokens": self._max_input_tokens,
                 "granularity": "caption-bundle",
             },
             defaults=dict(_EVALUATOR_GEN_CONFIG),
-            loader=self._load_evaluator_weights,
+            loader=(lambda: None) if injected else self._load_evaluator_weights,
             unloader=self._unload_evaluator_weights,
         ), cache=cache)
-        self._predictor.load_model()
-
-    def _evaluator_dtype(self):
-        return _DTYPES[self._evaluator_dtype_name]
+        if not self._cache_only:
+            self._predictor.load_model()
 
     def _load_evaluator_weights(self) -> None:
-        from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+        import torch
+        from transformers import AutoModelForSeq2SeqLM
 
+        if self._device is None:
+            self._device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info("Loading THRONE evaluator model: %s on %s",
                      self._evaluator_model_name, self._device)
         self._evaluator_tokenizer = self._get_tokenizer()
         self._evaluator_model = AutoModelForSeq2SeqLM.from_pretrained(
             self._evaluator_model_name,
-            torch_dtype=self._evaluator_dtype(),
+            torch_dtype=getattr(torch, self._evaluator_dtype_name),
         ).to(self._device).eval()
         logger.info("THRONE evaluator model loaded successfully")
 
     def _unload_evaluator_weights(self) -> None:
-        if self._evaluator_model is not None:
+        loaded = self._evaluator_model is not None
+        if loaded:
             del self._evaluator_model
         if self._evaluator_tokenizer is not None:
             del self._evaluator_tokenizer
         self._evaluator_model = None
         self._evaluator_tokenizer = None
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        if loaded:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     def unload_evaluator(self) -> None:
         """Unload the evaluator model and free resources."""
@@ -327,8 +423,11 @@ class ThroneMetric(BaseMetric):
 
     def _get_tokenizer(self):
         if self._evaluator_tokenizer is None:
-            from transformers import AutoTokenizer
-            self._evaluator_tokenizer = AutoTokenizer.from_pretrained(self._evaluator_model_name)
+            if self._tokenizer is not None:
+                self._evaluator_tokenizer = self._tokenizer
+            else:
+                from transformers import AutoTokenizer
+                self._evaluator_tokenizer = AutoTokenizer.from_pretrained(self._evaluator_model_name)
         return self._evaluator_tokenizer
 
     def _generate_questions_for_category(
@@ -372,7 +471,7 @@ class ThroneMetric(BaseMetric):
     def _categories_for(self, caption: str, gt_objects: List[str]) -> List[str]:
         """Category set to ask about for one image.
 
-        Without ``distractor_ratio`` this is the full set. With it, every
+        With ``distractor_ratio`` 0 this is the full set. Otherwise every
         ground-truth category plus a seeded random sample of others, so the
         distractor-to-positive ratio is constant across images and datasets.
         """
@@ -421,28 +520,32 @@ class ThroneMetric(BaseMetric):
             out.append(json.dumps([int((t or "").strip().lower().startswith("yes")) for t in texts]))
         return out
 
-    @torch.inference_mode()
     def _raw_generate_batch(self, prompts: List[str]) -> List[str]:
-        """Tokenize, generate, and decode with the raw evaluator model."""
+        """Tokenize, generate, and decode with the raw evaluator model (or the injected evaluator)."""
+        if self._evaluator is not None:
+            return list(self._evaluator(prompts))
+        import torch
+
         texts: List[str] = []
-        for i in range(0, len(prompts), self._batch_size):
-            batch = prompts[i:i + self._batch_size]
-            inputs = self._evaluator_tokenizer(
-                batch,
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-                max_length=self._max_input_tokens,
-            ).to(self._device)
+        with torch.inference_mode():
+            for i in range(0, len(prompts), self._batch_size):
+                batch = prompts[i:i + self._batch_size]
+                inputs = self._evaluator_tokenizer(
+                    batch,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=self._max_input_tokens,
+                ).to(self._device)
 
-            output_ids = self._evaluator_model.generate(
-                **inputs,
-                **_EVALUATOR_GEN_CONFIG,
-            )
+                output_ids = self._evaluator_model.generate(
+                    **inputs,
+                    **_EVALUATOR_GEN_CONFIG,
+                )
 
-            texts.extend(self._evaluator_tokenizer.batch_decode(
-                output_ids, skip_special_tokens=True,
-            ))
+                texts.extend(self._evaluator_tokenizer.batch_decode(
+                    output_ids, skip_special_tokens=True,
+                ))
         return texts
 
     # ------------------------------------------------------------------
@@ -535,6 +638,7 @@ class ThroneMetric(BaseMetric):
             )
 
         self._ensure_evaluator_loaded()
+        self._gt.extend(list(gt) for gt in ground_truth)
 
         categories = self._object_categories
         num_categories = len(categories)
@@ -648,6 +752,29 @@ class ThroneMetric(BaseMetric):
         return self.results
 
     # ------------------------------------------------------------------
+    # Class-wise F0.5 (the judged THRONE score)
+    # ------------------------------------------------------------------
+
+    def support(self, gt_lists: Optional[List[List[str]]] = None) -> Counter:
+        """Annotated images per lowercased category; default: the ground truth seen by :meth:`evaluate`."""
+        return Counter(g.lower() for gt in (self._gt if gt_lists is None else gt_lists) for g in set(gt))
+
+    def score(self, details: List[Dict], support: Optional[Counter] = None,
+              is_present: Optional[Callable[[int, str], bool]] = None) -> Dict[str, float]:
+        """Class-wise F0.5 on ``per_image_details``: ``raw`` (paper style, no caption
+        length rule) plus the head score and its P, R and category count.
+
+        ``is_present`` completes the labels (see :func:`completed_labels`); Visual
+        Genome requires it. ``support`` defaults to :meth:`support`.
+        """
+        if self.dataset == "vg" and is_present is None:
+            raise ValueError("Visual Genome THRONE needs is_present (completed labels)")
+        support = self.support() if support is None else support
+        paper = classwise(details, support, self.min_support, min_words=None)
+        head = classwise(details, support, self.min_support, is_present=is_present)
+        return {"raw": paper["head"], **head}
+
+    # ------------------------------------------------------------------
     # Reporting
     # ------------------------------------------------------------------
 
@@ -693,6 +820,7 @@ class ThroneMetric(BaseMetric):
         explicitly for full cleanup.
         """
         super().reset()
+        self._gt = []
         self._truncated_inputs = 0
         self._questions_per_image = []
         self._image_precisions = []
