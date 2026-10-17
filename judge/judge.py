@@ -31,7 +31,8 @@ def mention_requests(images: List[Dict], verdicts: Dict, refs: Optional[Dict[str
         if mentions:
             if image_paths is None:
                 raise ValueError(f"{item} has mentions to judge; pass image_paths (item -> image file)")
-            out.append({"image_id": item, "image": str(image_paths[item]), "mentions": mentions})
+            # absolute: claude runs with cwd=judge/
+            out.append({"image_id": item, "image": str(Path(image_paths[item]).resolve()), "mentions": mentions})
     return out
 
 
@@ -49,9 +50,9 @@ class Judge:
 
     @classmethod
     def load(cls, path: Optional[Path] = None, live: bool = False, live_dir: Optional[Path] = None) -> "Judge":
-        """The frozen store (see :meth:`VerdictStore.open`); ``live=True`` adds the Claude judge,
-        writing to ``live_dir`` (default ``<store>/live``)."""
-        store = VerdictStore.open(path, live=live, live_dir=live_dir if live else None)
+        """The frozen store (see :meth:`VerdictStore.open`) plus the live shard in ``live_dir``, if
+        given; ``live=True`` adds the Claude judge, writing to ``live_dir`` (default ``<store>/live``)."""
+        store = VerdictStore.open(path, live=live, live_dir=live_dir)
         if not live:
             return cls(store)
         from .claude import ClaudeCLI
@@ -72,6 +73,8 @@ class Judge:
             The POPE drop list of ``ds``, or ``{(item, key): verdict}``.
         """
         if kind == "pope":
+            if ds is None:
+                raise ValueError("pope verdicts need ds")
             covered = self.store.covered(ds)
             missing = sorted({(f"{ds}_{iid}", "drop-list") for iid, *_ in records if f"{ds}_{iid}" not in covered})
             if missing:

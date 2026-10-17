@@ -3,6 +3,7 @@
 import csv
 import gzip
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -47,10 +48,9 @@ class VerdictStore:
 
     Frozen rows always win: :meth:`verdicts` is ``{**live, **frozen}`` and :meth:`add`
     refuses keys that are already frozen, so a new model never moves a published row.
-    ``committee.json`` (written by ``repro.py --export-committee``, sha256 in the manifest's
-    "files" once shipped) is optional; without it no item is covered, and :class:`judge.Judge`
-    raises for POPE and the committee. ``final_tables.json`` is checked only when
-    :meth:`reference_table` reads it.
+    ``committee.json`` (written by ``repro.py --export-committee``) is one of the manifest's
+    "files", like the verdicts. ``final_tables.json`` is checked only when :meth:`reference_table`
+    reads it.
     """
 
     def __init__(self, directory: Path, live_dir: Optional[Path] = None, reference_sha: Optional[str] = None):
@@ -60,14 +60,13 @@ class VerdictStore:
         self._frozen = {kind: load_verdicts(kind, self.directory) for kind in KINDS}
         self._drop = load_drop_list(self.directory)
         self._live = {kind: self._read_live(kind) for kind in KINDS}
-        path = self.directory / "committee.json"
-        self._committee = json.loads(path.read_text()) if path.exists() else {}
+        self._committee = json.loads((self.directory / "committee.json").read_text())
 
     @classmethod
     def open(cls, path: Optional[Path] = None, manifest: Path = MANIFEST, live: bool = False,
              live_dir: Optional[Path] = None) -> "VerdictStore":
-        """Open :func:`judgments_dir` ``(path)``; ``live=True`` adds a live shard in ``live_dir``
-        (default ``<directory>/live``).
+        """Open :func:`judgments_dir` ``(path)`` with the live shard in ``live_dir`` (with ``live=True``,
+        default ``<directory>/live``).
 
         Raises:
             ValueError: A file the store loads (the manifest's "files") does not match its sha256.
@@ -118,14 +117,21 @@ class VerdictStore:
         if frozen:
             raise ValueError(f"{len(frozen)} {kind} keys are already frozen, e.g. {frozen[:5]}")
         self.live_dir.mkdir(parents=True, exist_ok=True)
+        buf = io.StringIO()
+        csv.writer(buf, delimiter="\t", lineterminator="\n").writerows(
+            (item, key, verdict, judge_model, skill_sha) for item, key, verdict in rows)
         with open(self.live_dir / f"{kind}.tsv", "a", encoding="utf-8", newline="") as f:
-            csv.writer(f, delimiter="\t", lineterminator="\n").writerows(
-                (item, key, verdict, judge_model, skill_sha) for item, key, verdict in rows)
+            f.write(buf.getvalue())
         self._live[kind].update(((item, key), verdict) for item, key, verdict in rows)
 
     def _read_live(self, kind: str) -> Dict[Tuple[str, str], str]:
         path = self.live_dir / f"{kind}.tsv" if self.live_dir else None
         if path is None or not path.exists():
             return {}
-        with open(path, encoding="utf-8") as f:
-            return {(row[0], row[1]): row[2] for row in csv.reader(f, delimiter="\t")}
+        live = {}
+        with open(path, encoding="utf-8", newline="") as f:
+            for n, row in enumerate(csv.reader(f, delimiter="\t"), 1):
+                if len(row) < 3:
+                    raise ValueError(f"{path}:{n}: expected item, key, verdict[, judge model, skill sha], got {row}")
+                live[row[0], row[1]] = row[2]
+        return live
