@@ -29,6 +29,8 @@ def mention_requests(images: List[Dict], verdicts: Dict, refs: Optional[Dict[str
                            c["caption"][:300])
                 mentions.append({"model": m, "word": x["word"], "context": ctx[:400]})
         if mentions:
+            if image_paths is None:
+                raise ValueError(f"{item} has mentions to judge; pass image_paths (item -> image file)")
             out.append({"image_id": item, "image": str(image_paths[item]), "mentions": mentions})
     return out
 
@@ -63,7 +65,8 @@ class Judge:
         Args:
             kind: "pope" (POPEMetric records; needs ``ds``), "rope" (ROPEMetric records) or
                 "mentions" (ChairMetric images, with ``refs`` on COCO).
-            image_paths: item -> image file shown to the live judge (mentions only).
+            image_paths: item -> image file shown to the live judge (mentions only; required
+                when it has mentions to grade).
 
         Returns:
             The POPE drop list of ``ds``, or ``{(item, key): verdict}``.
