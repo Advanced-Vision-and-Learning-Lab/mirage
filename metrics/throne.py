@@ -591,28 +591,6 @@ class ThroneMetric(BaseMetric):
                 return "disqualified"
 
     # ------------------------------------------------------------------
-    # F-beta score helper
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def compute_f_beta(precision: float, recall: float, beta: float) -> float:
-        """Compute F-beta score.
-
-        Args:
-            precision: Precision value (0-1).
-            recall: Recall value (0-1).
-            beta: Beta parameter. beta < 1 weights precision more;
-                beta > 1 weights recall more.
-
-        Returns:
-            F-beta score (0-1).
-        """
-        if precision + recall == 0:
-            return 0.0
-        beta_sq = beta ** 2
-        return (1 + beta_sq) * precision * recall / (beta_sq * precision + recall)
-
-    # ------------------------------------------------------------------
     # Core evaluation
     # ------------------------------------------------------------------
 
@@ -730,7 +708,7 @@ class ThroneMetric(BaseMetric):
             avg_recall = 0.0
 
         f1 = self.compute_f1(avg_precision, avg_recall)
-        f05 = self.compute_f_beta(avg_precision, avg_recall, beta=0.5)
+        f05 = fbeta(avg_precision, avg_recall)
 
         self.results = {
             "precision": avg_precision,
