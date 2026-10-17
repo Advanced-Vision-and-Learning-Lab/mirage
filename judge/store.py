@@ -32,18 +32,31 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def judgments_dir(path: Optional[Path] = None) -> Path:
+    """``path``, else ``$MIRAGE_JUDGMENTS_DIR``, else the repository's ``judgments/``."""
+    return Path(path or os.environ.get("MIRAGE_JUDGMENTS_DIR") or JUDGMENTS)
+
+
+def _check(path: Path, digest: str) -> None:
+    if sha256(path) != digest:
+        raise ValueError(f"{path} does not match its sha256 in the judge manifest")
+
+
 class VerdictStore:
     """Frozen verdicts (checked against the manifest's sha256s) and new ones in a live shard.
 
     Frozen rows always win: :meth:`verdicts` is ``{**live, **frozen}`` and :meth:`add`
     refuses keys that are already frozen, so a new model never moves a published row.
-    ``committee.json`` (written by ``repro.py --export-committee``) is optional; without
-    it no item is covered, and :class:`judge.Judge` raises for POPE and the committee.
+    ``committee.json`` (written by ``repro.py --export-committee``, sha256 in the manifest's
+    "files" once shipped) is optional; without it no item is covered, and :class:`judge.Judge`
+    raises for POPE and the committee. ``final_tables.json`` is checked only when
+    :meth:`reference_table` reads it.
     """
 
-    def __init__(self, directory: Path, live_dir: Optional[Path] = None):
+    def __init__(self, directory: Path, live_dir: Optional[Path] = None, reference_sha: Optional[str] = None):
         self.directory = Path(directory)
         self.live_dir = Path(live_dir) if live_dir else None
+        self._reference_sha = reference_sha
         self._frozen = {kind: load_verdicts(kind, self.directory) for kind in KINDS}
         self._drop = load_drop_list(self.directory)
         self._live = {kind: self._read_live(kind) for kind in KINDS}
@@ -51,18 +64,19 @@ class VerdictStore:
         self._committee = json.loads(path.read_text()) if path.exists() else {}
 
     @classmethod
-    def open(cls, path: Optional[Path] = None, manifest: Path = MANIFEST,
+    def open(cls, path: Optional[Path] = None, manifest: Path = MANIFEST, live: bool = False,
              live_dir: Optional[Path] = None) -> "VerdictStore":
-        """Open ``path``, else ``$MIRAGE_JUDGMENTS_DIR``, else the repository's ``judgments/``.
+        """Open :func:`judgments_dir` ``(path)``; ``live=True`` adds a live shard in ``live_dir``
+        (default ``<directory>/live``).
 
         Raises:
-            ValueError: A file listed in the manifest does not match its sha256.
+            ValueError: A file the store loads (the manifest's "files") does not match its sha256.
         """
-        directory = Path(path or os.environ.get("MIRAGE_JUDGMENTS_DIR") or JUDGMENTS)
-        for name, digest in json.loads(Path(manifest).read_text())["files"].items():
-            if sha256(directory / name) != digest:
-                raise ValueError(f"{directory / name} does not match its sha256 in {manifest}")
-        return cls(directory, live_dir)
+        directory, spec = judgments_dir(path), json.loads(Path(manifest).read_text())
+        for name, digest in spec["files"].items():
+            _check(directory / name, digest)
+        live_dir = live_dir or (directory / "live" if live else None)
+        return cls(directory, live_dir, spec.get("reference", {}).get("final_tables.json"))
 
     def verdicts(self, kind: str) -> Dict[Tuple[str, str], str]:
         """``{(item, key): verdict}`` for ``kind`` ("mentions" or "rope")."""
@@ -81,8 +95,15 @@ class VerdictStore:
         return set(self._committee.get(ds, {}))
 
     def reference_table(self) -> dict:
-        """The published table (``final_tables.json``) that ``repro.py --check`` compares with."""
-        return json.loads((self.directory / "final_tables.json").read_text())["table"]
+        """The published table (``final_tables.json``) that ``repro.py --check`` compares with.
+
+        Raises:
+            ValueError: The file does not match its sha256 in the manifest's "reference".
+        """
+        path = self.directory / "final_tables.json"
+        if self._reference_sha:
+            _check(path, self._reference_sha)
+        return json.loads(path.read_text())["table"]
 
     def add(self, kind: str, rows: Iterable[Tuple[str, str, str]], judge_model: str, skill_sha: str) -> None:
         """Append new ``(item, key, verdict)`` rows to the live shard.

@@ -260,7 +260,9 @@ def main(argv=None) -> int:
     if args.table:
         table, store = json.load(open(args.table))["table"], None
     else:
-        store = VerdictStore.open(args.judgments)  # frozen only; checks every file's sha256
+        store = VerdictStore.open(args.judgments)  # frozen only; checks the verdict files' sha256
+        if args.check:  # read (and sha256-check) the reference before the long rebuild
+            ref = store.reference_table() if args.check is True else json.load(open(args.check))["table"]
         table = build_table(args.root, store)
     if args.out:
         json.dump({"table": table, "models": MODELS}, open(args.out, "w"), indent=1)
@@ -268,7 +270,6 @@ def main(argv=None) -> int:
         write_csv(table, args.csv)
     status = 0
     if args.check:
-        ref = store.reference_table() if args.check is True else json.load(open(args.check))["table"]
         want, got = dict(_leaves(ref)), dict(_leaves(table))
         bad = sorted(p for p in want.keys() | got.keys() if want.get(p, "missing") != got.get(p, "missing"))
         print(f"{len(want)} reference values, {len(got)} rebuilt, {len(bad)} differ")
