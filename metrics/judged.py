@@ -19,11 +19,14 @@ import json
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
+
+from metrics.base_metric import MIN_WORDS, fbeta
+from metrics.throne import MIN_SUPPORT, classwise
 
 REPO = Path(__file__).resolve().parent.parent
 JUDGMENTS = REPO / "judgments"
-N_IMAGES, MIN_WORDS, MIN_SUPPORT = 500, 5, 5
+N_IMAGES = 500
 DATASETS = {"coco": "COCO", "vg": "Visual Genome"}
 # Key -> display name. Order fixes rank ties.
 MODELS = {
@@ -68,10 +71,6 @@ def load_drop_list(directory: Path = JUDGMENTS) -> Dict[str, Dict[Tuple[str, str
 # ----------------------------------------------------------------------
 # Scorers (pure functions of records and verdicts)
 # ----------------------------------------------------------------------
-
-def fbeta(p: float, r: float, beta2: float = 0.25) -> float:
-    return (1 + beta2) * p * r / (beta2 * p + r) if p + r else 0.0
-
 
 def _binary(rows: List[Tuple[bool, bool]]) -> Dict[str, float]:
     tp = sum(1 for l, y in rows if l and y); tn = sum(1 for l, y in rows if not l and not y)
@@ -158,37 +157,6 @@ def mod_chair(images: List[Dict], verdicts: Dict, refs: Optional[Dict[str, set]]
                   "coverage": coverage, "mod_chair_s": sum(r["h"] > 0 for r in rs) / len(rs),
                   "n_raw": sum(r["raw_m"] for r in rs), "n_head": sum(r["m"] for r in rs)}
     return out
-
-
-def throne_classwise(details: List[Dict], support: Counter, min_support: Optional[int] = None,
-                     min_words: Optional[int] = MIN_WORDS,
-                     is_present: Optional[Callable[[int, str], bool]] = None) -> Dict[str, float]:
-    """THRONE class-wise P and R (macro over categories), then F0.5, on ``per_image_details``.
-
-    ``min_words``: shorter captions predict nothing. ``is_present(i, category)``: a predicted
-    category verified present in image ``i`` counts as true (completed labels). Categories
-    with fewer than ``min_support`` annotated images (``support``) are left out of the average.
-    """
-    tp, fp, fn = Counter(), Counter(), Counter()
-    for i, d in enumerate(details):
-        dq = set(d["disqualified_objects"])
-        short = min_words is not None and len(d["caption"].split()) < min_words
-        pred = set() if short else set(d["predicted_objects"]) - dq
-        truth = set(d["gt_objects"]) - dq
-        if is_present is not None:
-            truth |= {c for c in pred if is_present(i, c)}
-        for c in pred & truth: tp[c] += 1
-        for c in pred - truth: fp[c] += 1
-        for c in truth - pred: fn[c] += 1
-    cats = set(tp) | set(fp) | set(fn)
-    if min_support is not None:
-        cats &= {c for c, n in support.items() if n >= min_support}
-    cats = sorted(cats)
-    ps = [tp[c] / (tp[c] + fp[c]) for c in cats if tp[c] + fp[c]]
-    rs = [tp[c] / (tp[c] + fn[c]) for c in cats if tp[c] + fn[c]]
-    p = sum(ps) / len(ps) if ps else 0.0
-    r = sum(rs) / len(rs) if rs else 0.0
-    return {"head": fbeta(p, r), "P": p, "R": r, "n_head": len(cats)}
 
 
 # ----------------------------------------------------------------------
@@ -335,10 +303,10 @@ def build_table(root: Path) -> Dict[str, Dict]:
             if any(d["caption"] != img["models"][model]["caption"] for d, img in zip(details, images)):
                 raise ValueError(f"{model} {ds}: THRONE captions are not aligned with the caption run")
             min_support = MIN_SUPPORT if ds == "vg" else None
-            paper = throne_classwise(details, support, min_support, min_words=None)
+            paper = classwise(details, support, min_support, min_words=None)
             present = (lambda i, c: c in vp[i] or variant_of_gt(c, list(vp[i]))[0] in ("exact", "plural", "phrase")) \
                 if vp else None
-            head = throne_classwise(details, support, min_support, is_present=present)
+            head = classwise(details, support, min_support, is_present=present)
             rows[model] = {"POPE": mod_pope(pope[model], drop.get(ds, {})), "ROPE": mod_rope(rope[model], rope_v),
                            "CHAIR": chair[model], "THRONE": {"raw": paper["head"], **head}}
         for metric in ("POPE", "ROPE", "CHAIR", "THRONE"):
