@@ -22,7 +22,7 @@ import logging
 import os
 import random
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from collections import Counter
 
 from predict.backends import CallableBackend
@@ -169,6 +169,14 @@ class ThroneMetric(BaseMetric):
             than the window minus the prompt are trimmed from the end, so the
             evaluator never sees their tail. It is part of the evaluator cache
             key, so changing it re-asks every question.
+        evaluator: Optional ``fn(prompts) -> texts`` used instead of FLAN-T5
+            (no weights load). Its answers are keyed under class_name
+            ``"InjectedEvaluator"``, so they never mix with real evaluator rows.
+        tokenizer: Optional tokenizer for trimming captions to the window;
+            None loads the evaluator's own tokenizer.
+        cache_only: Replay mode. The evaluator cache opens read-only, the
+            weights never load, and a cache miss raises. An
+            ``evaluator_cache`` passed in is used as given.
     """
 
     def __init__(
@@ -183,6 +191,9 @@ class ThroneMetric(BaseMetric):
         evaluator_cache: Optional[SQLiteResponseCache] = None,
         distractor_ratio: Optional[float] = None,
         evaluator_max_tokens: Optional[int] = None,
+        evaluator: Optional[Callable[[List[str]], List[str]]] = None,
+        tokenizer: Any = None,
+        cache_only: bool = False,
     ):
         super().__init__("throne")
 
@@ -199,6 +210,9 @@ class ThroneMetric(BaseMetric):
             raise ValueError(f"evaluator_dtype must be one of {sorted(_DTYPES)}, got {dtype_name!r}")
         self._evaluator_dtype_name = dtype_name
         self._evaluator_cache = evaluator_cache
+        self._evaluator = evaluator
+        self._tokenizer = tokenizer
+        self._cache_only = cache_only
         self._truncated_inputs = 0
         env_ratio = os.environ.get("MIRAGE_THRONE_DISTRACTOR_RATIO")
         if distractor_ratio is None and env_ratio:
@@ -233,16 +247,21 @@ class ThroneMetric(BaseMetric):
     # ------------------------------------------------------------------
 
     def load_evaluator(self) -> None:
-        """Set up the cached evaluator; model weights load on the first cache miss."""
+        """Set up the cached evaluator; model weights load on the first cache miss.
+
+        Under ``cache_only`` the weights never load, so a miss raises.
+        """
         model_id, revision = parse_model_name(self._evaluator_model_name)
         cache = self._evaluator_cache
         if cache is None and os.environ.get("MIRAGE_CACHE_DISABLE") != "1":
-            cache = SQLiteResponseCache(evaluator_cache_path(), secondary_indexes=False)
+            cache = (SQLiteResponseCache(evaluator_cache_path(), readonly=True) if self._cache_only
+                     else SQLiteResponseCache(evaluator_cache_path(), secondary_indexes=False))
+        injected = self._evaluator is not None
         self._predictor = Predictor(CallableBackend(
             fn=self._answer_bundles,
             identity={
                 "provider": "local-callable",
-                "class_name": "ThroneEvaluator",
+                "class_name": "InjectedEvaluator" if injected else "ThroneEvaluator",
                 "model_id": model_id,
                 "revision": revision,
                 "dtype": _DTYPES[self._evaluator_dtype_name],
@@ -250,10 +269,11 @@ class ThroneMetric(BaseMetric):
                 "granularity": "caption-bundle",
             },
             defaults=dict(_EVALUATOR_GEN_CONFIG),
-            loader=self._load_evaluator_weights,
+            loader=(lambda: None) if injected else self._load_evaluator_weights,
             unloader=self._unload_evaluator_weights,
         ), cache=cache)
-        self._predictor.load_model()
+        if not self._cache_only:
+            self._predictor.load_model()
 
     def _load_evaluator_weights(self) -> None:
         import torch
@@ -324,8 +344,11 @@ class ThroneMetric(BaseMetric):
 
     def _get_tokenizer(self):
         if self._evaluator_tokenizer is None:
-            from transformers import AutoTokenizer
-            self._evaluator_tokenizer = AutoTokenizer.from_pretrained(self._evaluator_model_name)
+            if self._tokenizer is not None:
+                self._evaluator_tokenizer = self._tokenizer
+            else:
+                from transformers import AutoTokenizer
+                self._evaluator_tokenizer = AutoTokenizer.from_pretrained(self._evaluator_model_name)
         return self._evaluator_tokenizer
 
     def _generate_questions_for_category(
@@ -419,7 +442,9 @@ class ThroneMetric(BaseMetric):
         return out
 
     def _raw_generate_batch(self, prompts: List[str]) -> List[str]:
-        """Tokenize, generate, and decode with the raw evaluator model."""
+        """Tokenize, generate, and decode with the raw evaluator model (or the injected evaluator)."""
+        if self._evaluator is not None:
+            return list(self._evaluator(prompts))
         import torch
 
         texts: List[str] = []

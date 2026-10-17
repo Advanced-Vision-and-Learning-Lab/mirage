@@ -119,7 +119,7 @@ def _evaluate(args, model, loader, all_objects):
         categories = all_objects if args.dataset == "coco" else pool_objects(loader)
         metric = ThroneMetric(evaluator_model_name=args.throne_evaluator, object_categories=categories,
                               distractor_ratio=args.throne_distractor_ratio,
-                              evaluator_max_tokens=args.throne_evaluator_max_tokens)
+                              evaluator_max_tokens=args.throne_evaluator_max_tokens, cache_only=args.cache_only)
         metric.run(loader, model, n=args.samples, gen=gen)
     elif args.metric == "faithscore":
         from metrics.faithscore import FaithScoreMetric
