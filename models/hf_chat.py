@@ -9,7 +9,7 @@ import logging
 import re
 import time
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import torch
 from PIL import Image
@@ -38,6 +38,8 @@ class HFChatVLM(BaseModel):
             weights across all visible GPUs (default: ``device``).
         torch_dtype: Weight dtype (default: bfloat16).
     """
+
+    cache_name = "HFChatVLM"
 
     def __init__(
         self,
@@ -132,18 +134,11 @@ class HFChatVLM(BaseModel):
             enable_thinking=self.enable_thinking,
         )
 
-    def batch_generate(
-        self,
-        prompts: List[str],
-        images: Optional[List[Union[Image.Image, str, Path, None]]] = None,
-        **kwargs,
-    ) -> List[Optional[str]]:
-        images = images or [None] * len(prompts)
-        return [self.generate(prompt, image=image, **kwargs) for prompt, image in zip(prompts, images)]
-
 
 class HFChatThinkingVLM(HFChatVLM):
     """``HFChatVLM`` with thinking on; a separate class so cache keys never mix modes."""
+
+    cache_name = "HFChatThinkingVLM"
 
     def __init__(self, model_name: str, **kwargs):
         super().__init__(model_name, enable_thinking=True, **kwargs)
@@ -165,6 +160,7 @@ class MuseGlimmerVLM(HFChatVLM):
     same-size pass (pixel values identical to ``do_resize=False``).
     """
 
+    cache_name = "MuseGlimmerVLM"
     ANSWER_PREFIX = " to=user<|message|>"
     TEMPLATE_KWARGS = {"reasoning_strength": "low", "current_date": "2026-10-15"}
 
