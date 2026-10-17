@@ -1,11 +1,16 @@
-"""Stored judge verdicts: the frozen files in ``judgments/``."""
+"""Stored judge verdicts: the frozen files in ``judgments/`` plus an optional live shard."""
 
 import csv
 import gzip
+import hashlib
+import json
+import os
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Iterable, Optional, Set, Tuple
 
 JUDGMENTS = Path(__file__).resolve().parent.parent / "judgments"
+MANIFEST = Path(__file__).resolve().parent / "manifest.json"
+KINDS = ("mentions", "rope")
 
 
 def load_verdicts(name: str, directory: Path = JUDGMENTS) -> Dict[Tuple[str, str], str]:
@@ -21,3 +26,85 @@ def load_drop_list(directory: Path = JUDGMENTS) -> Dict[str, Dict[Tuple[str, str
         for r in csv.DictReader(f, delimiter="\t"):
             drop.setdefault(r["dataset"], {})[(r["image_id"], r["object"])] = r["reason"]
     return drop
+
+
+def sha256(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+class VerdictStore:
+    """Frozen verdicts (checked against the manifest's sha256s) and new ones in a live shard.
+
+    Frozen rows always win: :meth:`verdicts` is ``{**live, **frozen}`` and :meth:`add`
+    refuses keys that are already frozen, so a new model never moves a published row.
+    ``committee.json`` (written by ``repro.py --export-committee``) is optional; without
+    it no item is covered, and :class:`judge.Judge` raises for POPE and the committee.
+    """
+
+    def __init__(self, directory: Path, live_dir: Optional[Path] = None):
+        self.directory = Path(directory)
+        self.live_dir = Path(live_dir) if live_dir else None
+        self._frozen = {kind: load_verdicts(kind, self.directory) for kind in KINDS}
+        self._drop = load_drop_list(self.directory)
+        self._live = {kind: self._read_live(kind) for kind in KINDS}
+        path = self.directory / "committee.json"
+        self._committee = json.loads(path.read_text()) if path.exists() else {}
+
+    @classmethod
+    def open(cls, path: Optional[Path] = None, manifest: Path = MANIFEST,
+             live_dir: Optional[Path] = None) -> "VerdictStore":
+        """Open ``path``, else ``$MIRAGE_JUDGMENTS_DIR``, else the repository's ``judgments/``.
+
+        Raises:
+            ValueError: A file listed in the manifest does not match its sha256.
+        """
+        directory = Path(path or os.environ.get("MIRAGE_JUDGMENTS_DIR") or JUDGMENTS)
+        for name, digest in json.loads(Path(manifest).read_text())["files"].items():
+            if sha256(directory / name) != digest:
+                raise ValueError(f"{directory / name} does not match its sha256 in {manifest}")
+        return cls(directory, live_dir)
+
+    def verdicts(self, kind: str) -> Dict[Tuple[str, str], str]:
+        """``{(item, key): verdict}`` for ``kind`` ("mentions" or "rope")."""
+        return {**self._live[kind], **self._frozen[kind]}
+
+    def drop_list(self, ds: str) -> Dict[Tuple[str, str], str]:
+        """POPE no-questions to drop on ``ds``: ``{(image_id, object): reason}``."""
+        return self._drop.get(ds, {})
+
+    def committee(self, ds: str) -> Dict[str, Dict[str, Set[str]]]:
+        """Per item of ``ds``: words the frozen pool resolved ``present`` and its ``verified`` present words."""
+        return {item: {k: set(v) for k, v in row.items()} for item, row in self._committee.get(ds, {}).items()}
+
+    def covered(self, ds: str) -> Set[str]:
+        """Items with frozen POPE drop decisions and a committee (the frozen images of ``ds``)."""
+        return set(self._committee.get(ds, {}))
+
+    def reference_table(self) -> dict:
+        """The published table (``final_tables.json``) that ``repro.py --check`` compares with."""
+        return json.loads((self.directory / "final_tables.json").read_text())["table"]
+
+    def add(self, kind: str, rows: Iterable[Tuple[str, str, str]], judge_model: str, skill_sha: str) -> None:
+        """Append new ``(item, key, verdict)`` rows to the live shard.
+
+        Raises:
+            ValueError: No live shard is open, or a row's key is already frozen.
+        """
+        rows = list(rows)
+        if self.live_dir is None:
+            raise ValueError("this store has no live shard; open it with live_dir")
+        frozen = [(item, key) for item, key, _ in rows if (item, key) in self._frozen[kind]]
+        if frozen:
+            raise ValueError(f"{len(frozen)} {kind} keys are already frozen, e.g. {frozen[:5]}")
+        self.live_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.live_dir / f"{kind}.tsv", "a", encoding="utf-8", newline="") as f:
+            csv.writer(f, delimiter="\t", lineterminator="\n").writerows(
+                (item, key, verdict, judge_model, skill_sha) for item, key, verdict in rows)
+        self._live[kind].update(((item, key), verdict) for item, key, verdict in rows)
+
+    def _read_live(self, kind: str) -> Dict[Tuple[str, str], str]:
+        path = self.live_dir / f"{kind}.tsv" if self.live_dir else None
+        if path is None or not path.exists():
+            return {}
+        with open(path, encoding="utf-8") as f:
+            return {(row[0], row[1]): row[2] for row in csv.reader(f, delimiter="\t")}
