@@ -25,8 +25,6 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from collections import Counter
 
-import torch
-
 from predict.backends import CallableBackend
 from predict.cache import SQLiteResponseCache, default_cache_path
 from predict.identity import parse_model_name
@@ -97,7 +95,8 @@ _EVALUATOR_GEN_CONFIG = {"max_new_tokens": 5, "do_sample": False}
 # survives. T5 has no absolute positions, so a longer window is valid.
 _EVALUATOR_MAX_TOKENS = 512
 
-_DTYPES = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}
+# Evaluator dtype name -> the str(torch.dtype) recorded in the cache identity; torch loads with the weights.
+_DTYPES = {"bfloat16": "torch.bfloat16", "float16": "torch.float16", "float32": "torch.float32"}
 
 
 def evaluator_cache_path() -> Path:
@@ -148,7 +147,8 @@ class ThroneMetric(BaseMetric):
             Default 3 as in the paper.
         voting_threshold: Fraction of votes needed to mark an object as
             "present". None means unanimous voting. Default None.
-        device: Device for evaluator model ('cuda', 'cpu', or None for auto).
+        device: Device for evaluator model ('cuda', 'cpu', or None to pick
+            cuda when available, once the weights load).
         batch_size: Batch size for evaluator inference.
         evaluator_dtype: Weight dtype name for the evaluator ('bfloat16',
             'float16', 'float32'). Part of the cache identity, so it must not
@@ -215,13 +215,7 @@ class ThroneMetric(BaseMetric):
         )
         self._voting_threshold = voting_threshold
         self._batch_size = batch_size
-
-        if device is not None:
-            self._device = device
-        elif torch.cuda.is_available():
-            self._device = "cuda"
-        else:
-            self._device = "cpu"
+        self._device = device
 
         self._evaluator_model = None
         self._evaluator_tokenizer = None
@@ -251,7 +245,7 @@ class ThroneMetric(BaseMetric):
                 "class_name": "ThroneEvaluator",
                 "model_id": model_id,
                 "revision": revision,
-                "dtype": str(self._evaluator_dtype()),
+                "dtype": _DTYPES[self._evaluator_dtype_name],
                 "max_input_tokens": self._max_input_tokens,
                 "granularity": "caption-bundle",
             },
@@ -261,30 +255,33 @@ class ThroneMetric(BaseMetric):
         ), cache=cache)
         self._predictor.load_model()
 
-    def _evaluator_dtype(self):
-        return _DTYPES[self._evaluator_dtype_name]
-
     def _load_evaluator_weights(self) -> None:
-        from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+        import torch
+        from transformers import AutoModelForSeq2SeqLM
 
+        if self._device is None:
+            self._device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info("Loading THRONE evaluator model: %s on %s",
                      self._evaluator_model_name, self._device)
         self._evaluator_tokenizer = self._get_tokenizer()
         self._evaluator_model = AutoModelForSeq2SeqLM.from_pretrained(
             self._evaluator_model_name,
-            torch_dtype=self._evaluator_dtype(),
+            torch_dtype=getattr(torch, self._evaluator_dtype_name),
         ).to(self._device).eval()
         logger.info("THRONE evaluator model loaded successfully")
 
     def _unload_evaluator_weights(self) -> None:
-        if self._evaluator_model is not None:
+        loaded = self._evaluator_model is not None
+        if loaded:
             del self._evaluator_model
         if self._evaluator_tokenizer is not None:
             del self._evaluator_tokenizer
         self._evaluator_model = None
         self._evaluator_tokenizer = None
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        if loaded:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     def unload_evaluator(self) -> None:
         """Unload the evaluator model and free resources."""
@@ -421,28 +418,30 @@ class ThroneMetric(BaseMetric):
             out.append(json.dumps([int((t or "").strip().lower().startswith("yes")) for t in texts]))
         return out
 
-    @torch.inference_mode()
     def _raw_generate_batch(self, prompts: List[str]) -> List[str]:
         """Tokenize, generate, and decode with the raw evaluator model."""
+        import torch
+
         texts: List[str] = []
-        for i in range(0, len(prompts), self._batch_size):
-            batch = prompts[i:i + self._batch_size]
-            inputs = self._evaluator_tokenizer(
-                batch,
-                return_tensors="pt",
-                padding=True,
-                truncation=True,
-                max_length=self._max_input_tokens,
-            ).to(self._device)
+        with torch.inference_mode():
+            for i in range(0, len(prompts), self._batch_size):
+                batch = prompts[i:i + self._batch_size]
+                inputs = self._evaluator_tokenizer(
+                    batch,
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True,
+                    max_length=self._max_input_tokens,
+                ).to(self._device)
 
-            output_ids = self._evaluator_model.generate(
-                **inputs,
-                **_EVALUATOR_GEN_CONFIG,
-            )
+                output_ids = self._evaluator_model.generate(
+                    **inputs,
+                    **_EVALUATOR_GEN_CONFIG,
+                )
 
-            texts.extend(self._evaluator_tokenizer.batch_decode(
-                output_ids, skip_special_tokens=True,
-            ))
+                texts.extend(self._evaluator_tokenizer.batch_decode(
+                    output_ids, skip_special_tokens=True,
+                ))
         return texts
 
     # ------------------------------------------------------------------
