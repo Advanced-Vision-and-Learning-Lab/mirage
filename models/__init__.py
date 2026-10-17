@@ -13,6 +13,7 @@ _MODULES = {
     "Gemma4Thinking": "gemma4",
     "Ministral3": "ministral3",
     "AyaVision": "aya_vision",
+    "MuseGlimmerVLM": "muse_glimmer",
 }
 
 __all__ = list(_MODULES)
