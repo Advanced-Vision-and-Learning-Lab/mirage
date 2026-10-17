@@ -20,7 +20,7 @@ class POPEMetric(BaseMetric):
     def __init__(self,
                  mode: str = "random",
                  yes_ratio: float = 0.5,
-                 num_questions_per_image: int = 10,
+                 num_questions_per_image: int = 6,
                  popular_objects_list: Optional[List[str]] = None,
                  seed: int = 42):
         """

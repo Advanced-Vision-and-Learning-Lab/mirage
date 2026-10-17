@@ -15,7 +15,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from metrics.base_metric import CAPTION_GEN, CAPTION_PROMPTS, BaseMetric
+from metrics.base_metric import CAPTION_GEN, CAPTION_PROMPTS, SAMPLES, BaseMetric
 
 logger = logging.getLogger("mirage.run")
 
@@ -25,7 +25,7 @@ def _parse_args():
     p.add_argument("--dataset", choices=("coco", "visual_genome"), default="coco")
     p.add_argument("--metric", choices=("pope", "chair", "rope", "throne", "faithscore", "nope"), default="chair")
     p.add_argument("--model", choices=("paligemma", "qwen2vl"), default=None)
-    p.add_argument("--samples", type=int, default=5, help="evaluated images")
+    p.add_argument("--samples", type=int, default=SAMPLES, help="evaluated images")
     p.add_argument("--pool-size", type=int, default=None,
                    help="candidate images loaded before filtering (default 2000; 3000 for COCO ROPE)")
     p.add_argument("--annotations", type=Path, default=None)
