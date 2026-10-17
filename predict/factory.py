@@ -26,6 +26,8 @@ class Entry(NamedTuple):
 _BF16 = "torch.bfloat16"
 _QWEN = "MIRAGE_QWEN_MODEL_PATH"
 
+# A new model needs a row here (and, for a new class, a models/__init__.py _MODULES line);
+# build_model checks each row against its class.
 REGISTRY: Mapping[str, Entry] = MappingProxyType({
     "paligemma": Entry("models.paligemma:PaligemmaModel", "MIRAGE_PALIGEMMA_MODEL_PATH",
                        "google/paligemma-3b-mix-224", "PaligemmaModel", _BF16),
@@ -57,7 +59,8 @@ REGISTRY: Mapping[str, Entry] = MappingProxyType({
 def _resolve_key(model_key: Optional[str]) -> str:
     key = (model_key or os.getenv("MIRAGE_VL_MODEL", "paligemma")).lower()
     if key not in REGISTRY:
-        raise ValueError(f"unknown model key {key!r}; expected one of {sorted(REGISTRY)}")
+        raise ValueError(f"unknown model key {key!r}; add a row to predict.factory.REGISTRY "
+                         f"or use one of {sorted(REGISTRY)}")
     return key
 
 
@@ -106,11 +109,13 @@ def build_model(model_key: Optional[str] = None, **overrides) -> Any:
     model_cls = getattr(importlib.import_module(module_name), class_name)
     # The registry mirror must match the class pin, or identity_for and the cache disagree.
     if getattr(model_cls, "cache_name", None) != entry.cache_name:
-        raise RuntimeError(f"{entry.target}.cache_name != registry cache_name {entry.cache_name!r}")
+        raise RuntimeError(f"{entry.target}.cache_name != registry cache_name {entry.cache_name!r}; "
+                           "update the row in predict.factory.REGISTRY")
     overrides.setdefault("model_name", _model_name(entry, os.environ))
     model = model_cls(**overrides)
     if "torch_dtype" not in overrides and str(getattr(model, "torch_dtype", None)) != entry.dtype:
-        raise RuntimeError(f"{entry.target} dtype {getattr(model, 'torch_dtype', None)} != registry dtype {entry.dtype}")
+        raise RuntimeError(f"{entry.target} dtype {getattr(model, 'torch_dtype', None)} != registry dtype "
+                           f"{entry.dtype}; update the row in predict.factory.REGISTRY")
     return model
 
 
