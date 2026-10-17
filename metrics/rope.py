@@ -19,11 +19,12 @@ Reference:
 import re
 import logging
 from copy import deepcopy
+from types import MappingProxyType
 from typing import Any, Dict, List, Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .base_metric import BaseMetric
+from .base_metric import SAMPLES, BaseMetric, dataset_key, object_names
 
 # Matchers live in the top-level ``matching`` package (torch-free) so offline
 # rescoring can import them without pulling in metrics/__init__ (torch). Ensure
@@ -87,8 +88,8 @@ class ROPEMetric(BaseMetric):
     Adapted from: https://github.com/sled-group/moh
     """
 
-    POOL = {"coco": 3000, "vg": 2000}
-    GEN = {"max_new_tokens": 30, "do_sample": False}
+    POOL = MappingProxyType({"coco": 3000, "vg": 2000})
+    GEN = MappingProxyType({"max_new_tokens": 30, "do_sample": False})
 
     def __init__(
         self,
@@ -371,6 +372,33 @@ class ROPEMetric(BaseMetric):
             if phrase:
                 return phrase
         return text.strip(" .,;:()" + _QUOTES)
+
+    def run(self, loader, model, n: int = SAMPLES) -> List[Tuple[Any, int, str, str]]:
+        """Ask about each numbered box of the first ``n`` images that have enough boxes, then evaluate.
+
+        Each image gets ``num_objects`` boxes drawn on it and one question per
+        box. Read the scores with :meth:`format_results`.
+
+        Returns:
+            ``(image_id, box, response, ground_truth)`` per box (box is 1-based).
+        """
+        boxes = loader.extract_bboxes_for_rope(num_objects=self.num_objects)
+        # The VG vocabulary is too large for one prompt: list the classes in the pool's boxes.
+        classes = object_names(loader) if dataset_key(loader) == "coco" else sorted(
+            {b["name"] for image_boxes in boxes.values() for b in image_boxes if b["name"]})
+        predictions, ground_truth, records = [], [], []
+        for sample in [s for s in loader if str(s["image_id"]) in boxes][:n]:
+            image_boxes = boxes[str(sample["image_id"])]
+            image = self.draw_bounding_boxes(loader.load_image(sample), image_boxes)
+            responses = [model.generate(image=image, prompt=self.generate_prompt_for_box(i, class_list=classes),
+                                        **self.GEN) for i in range(1, self.num_objects + 1)]
+            predictions.append([self.parse_single_response(r) for r in responses])
+            ground_truth.append([b["name"] for b in image_boxes])
+            records += [(sample["image_id"], i, r, gt) for i, (r, gt) in enumerate(zip(responses, ground_truth[-1]), 1)]
+        if not predictions:
+            raise RuntimeError("No images had enough object boxes for ROPE.")
+        self.evaluate_predictions(predictions, ground_truth)
+        return records
 
     def evaluate_predictions(
         self,
