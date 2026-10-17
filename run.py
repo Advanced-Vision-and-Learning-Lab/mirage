@@ -13,9 +13,7 @@ import logging
 import os
 from pathlib import Path
 
-from PIL import Image
-
-from metrics.base_metric import CAPTION_GEN, SAMPLES, BaseMetric, caption_images, object_names, pool_objects
+from metrics.base_metric import CAPTION_GEN, SAMPLES, BaseMetric, object_names, pool_objects
 from metrics.pope import QUESTIONS_PER_IMAGE
 
 logger = logging.getLogger("mirage.run")
@@ -25,7 +23,7 @@ DS = {"coco": "coco", "visual_genome": "vg"}  # --dataset -> the key metrics use
 def _parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--dataset", choices=("coco", "visual_genome"), default="coco")
-    p.add_argument("--metric", choices=("pope", "chair", "rope", "throne", "faithscore", "nope"), default="chair")
+    p.add_argument("--metric", choices=("pope", "chair", "rope", "throne"), default="chair")
     p.add_argument("--model", choices=("paligemma", "qwen2vl"), default=None)
     p.add_argument("--samples", type=int, default=SAMPLES, help="evaluated images")
     p.add_argument("--pool-size", type=int, default=None,
@@ -36,13 +34,10 @@ def _parse_args(argv=None):
     p.add_argument("--max-new-tokens", type=int, default=CAPTION_GEN["max_new_tokens"], help="caption length cap")
     p.add_argument("--pope-questions", type=int, default=QUESTIONS_PER_IMAGE)
     p.add_argument("--output", type=Path, default=None, help="JSON results path")
-    p.add_argument("--nope-turn2", type=Path, help="NOPE turn-two results JSON")
-    p.add_argument("--nope-turn1", type=Path, help="NOPE turn-one results JSON")
     p.add_argument("--throne-evaluator", default=os.getenv("MIRAGE_THRONE_EVALUATOR_MODEL", "google/flan-t5-base"))
     p.add_argument("--throne-distractor-ratio", type=float, default=None,
                    help="distractors per ground-truth object (default: full vocabulary)")
     p.add_argument("--cache-only", action="store_true", help="never load the model; fail on a cache miss")
-    p.add_argument("--llama-model", default=os.getenv("MIRAGE_LLAMA_MODEL_PATH"))
     p.add_argument("--verbose", action="store_true")
     return p.parse_args(argv)
 
@@ -118,58 +113,8 @@ def _evaluate(args, model, loader, all_objects):
         metric = ThroneMetric(evaluator_model_name=args.throne_evaluator, object_categories=categories,
                               distractor_ratio=args.throne_distractor_ratio)
         metric.run(loader, model, n=args.samples, gen=gen)
-    elif args.metric == "faithscore":
-        from metrics.faithscore import FaithScoreMetric
-
-        if not args.llama_model:
-            raise ValueError("FaithScore needs --llama-model or MIRAGE_LLAMA_MODEL_PATH.")
-        from models.paligemma import PaligemmaModel
-
-        scored, captions = caption_images(loader, model, args.samples, gen)
-        image_paths = [str(s.get("image_path") or loader.images_path / s["image_filename"]) for s in scored]
-        verifier = PaligemmaModel(model_name=os.getenv("MIRAGE_PALIGEMMA_MODEL_PATH", "google/paligemma-3b-mix-224"))
-        verifier.load_model()
-        try:
-            metric = FaithScoreMetric(llama_path=args.llama_model, verification_model=verifier,
-                                      caption_model_name=model.model_name)
-            metric.evaluate(captions, image_paths)
-        finally:
-            verifier.unload_model()
     else:
         raise ValueError(f"Unsupported metric for image datasets: {args.metric}")
-    return metric.format_results()
-
-
-def _run_nope(args):
-    from metrics.nope import NOPEMetric
-    from predict.cache import SQLiteResponseCache
-    from predict.factory import build_predictor
-
-    if not args.nope_turn2:
-        raise ValueError("NOPE requires --nope-turn2 with generated Turn 2 model responses.")
-    image_dir = args.images or Path("datasets/coco/val2017")
-    metric = NOPEMetric(turn2_path=str(args.nope_turn2), image_dir=str(image_dir),
-                        turn1_path=str(args.nope_turn1) if args.nope_turn1 else None)
-    records = metric.records[:args.samples]
-    model = build_predictor(args.model or "paligemma",
-                            cache=SQLiteResponseCache(readonly=True) if args.cache_only else None)
-    if not args.cache_only:
-        model.load_model()
-    outputs = []
-    try:
-        for record in records:
-            image_id = record["image_id"]
-            found = list(image_dir.glob(f"*{image_id.zfill(12)}*")) or list(image_dir.glob(f"*{image_id}*"))
-            if not found:
-                logger.warning("NOPE image %s is missing; scoring an empty response", image_id)
-                outputs.append("")
-                continue
-            with Image.open(found[0]) as image:
-                outputs.append(model.generate(image=image.convert("RGB"), prompt=record["question"], **metric.GEN))
-    finally:
-        model.unload_model()
-    metric.records = records
-    metric.evaluate(outputs)
     return metric.format_results()
 
 
@@ -179,9 +124,7 @@ def main(argv=None):
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     if args.samples < 1:
         raise SystemExit("--samples must be positive")
-    if args.cache_only and args.metric == "faithscore":
-        raise SystemExit("--cache-only does not cover FaithScore: its verifier and Llama always load")
-    results = _run_nope(args) if args.metric == "nope" else _run_dataset_metric(args)
+    results = _run_dataset_metric(args)
     rendered = json.dumps(results, indent=2, default=str)
     print(rendered)
     if args.output:

@@ -4,14 +4,12 @@ import importlib
 _MODULES = {
     "BaseMetric": "base_metric",
     "POPEMetric": "pope",
-    "NOPEMetric": "nope",
     "ROPEMetric": "rope",
     "ChairMetric": "chair",
     "ThroneMetric": "throne",
-    "FaithScoreMetric": "faithscore",
 }
 
-__all__ = ["BaseMetric", "POPEMetric", "ROPEMetric", "NOPEMetric", "ChairMetric", "ThroneMetric", "FaithScoreMetric"]
+__all__ = ["BaseMetric", "POPEMetric", "ROPEMetric", "ChairMetric", "ThroneMetric"]
 
 
 def __getattr__(name):
