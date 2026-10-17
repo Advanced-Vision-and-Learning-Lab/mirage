@@ -3,8 +3,7 @@
 Cache keys are SHA-256 hashes over a sorted-keys JSON payload of the
 model identity, the input image, the prompt, and the generation config.
 Bump ``CACHE_KEY_VERSION`` whenever model post-processing or key
-semantics change in a way that should invalidate existing cache entries
-(same policy as ``matching.judge.PROMPT_VERSION``).
+semantics change in a way that should invalidate existing cache entries.
 """
 
 import hashlib

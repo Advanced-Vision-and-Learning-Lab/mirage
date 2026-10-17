@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from types import MappingProxyType
 from typing import Dict, List, Any, Mapping, Tuple, Union, Optional
 import numpy as np
@@ -60,10 +60,10 @@ def caption_images(loader, model, n: int = SAMPLES,
 
 class BaseMetric(ABC):
     """
-    Abstract base class for all evaluation metrics in Mirage.
+    Base class for all evaluation metrics in Mirage.
 
-    All metric implementations must inherit from this class and implement
-    the required abstract methods.
+    Subclasses override the methods their protocol uses: ``run`` or
+    ``evaluate``, and ``format_results``.
     """
 
     POOL = MappingProxyType({"coco": 2000, "vg": 2000})  # candidate images loaded before filtering
@@ -78,7 +78,6 @@ class BaseMetric(ABC):
         self.name = name
         self.results = {}
 
-    @abstractmethod
     def evaluate(self, model_outputs: List[Any], ground_truth: List[Any], **kwargs) -> Dict[str, float]:
         """
         Evaluate model outputs against ground truth.
@@ -91,9 +90,8 @@ class BaseMetric(ABC):
         Returns:
             Dictionary of metric scores
         """
-        pass
+        raise NotImplementedError(f"{type(self).__name__} has no evaluate()")
 
-    @abstractmethod
     def format_results(self) -> Dict[str, Any]:
         """
         Format the evaluation results for reporting.
@@ -101,7 +99,7 @@ class BaseMetric(ABC):
         Returns:
             Dictionary containing formatted results
         """
-        pass
+        raise NotImplementedError(f"{type(self).__name__} has no format_results()")
 
     def run(self, loader, model, n: int = SAMPLES, gen: Mapping[str, Any] = CAPTION_GEN) -> List[Tuple[Any, str]]:
         """Caption the first ``n`` annotated images, then evaluate the captions.

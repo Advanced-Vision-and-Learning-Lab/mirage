@@ -135,15 +135,6 @@ class HFChatVLM(BaseModel):
         )
 
 
-class HFChatThinkingVLM(HFChatVLM):
-    """``HFChatVLM`` with thinking on; a separate class so cache keys never mix modes."""
-
-    cache_name = "HFChatThinkingVLM"
-
-    def __init__(self, model_name: str, **kwargs):
-        super().__init__(model_name, enable_thinking=True, **kwargs)
-
-
 class MuseGlimmerVLM(HFChatVLM):
     """Muse Glimmer: reasoning skipped, weights split across all visible GPUs.
 
