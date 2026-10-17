@@ -22,7 +22,7 @@ import logging
 import os
 import random
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 from collections import Counter
 
 from predict.backends import CallableBackend
@@ -30,7 +30,7 @@ from predict.cache import SQLiteResponseCache, default_cache_path
 from predict.identity import parse_model_name
 from predict.predictor import Predictor
 
-from .base_metric import MIN_WORDS, BaseMetric, fbeta, object_names, pool_objects
+from .base_metric import CAPTION_GEN, MIN_WORDS, SAMPLES, BaseMetric, fbeta, object_names, pool_objects
 
 logger = logging.getLogger(__name__)
 
@@ -593,6 +593,15 @@ class ThroneMetric(BaseMetric):
     # ------------------------------------------------------------------
     # Core evaluation
     # ------------------------------------------------------------------
+
+    def run(self, loader, model, n: int = SAMPLES, gen: Mapping[str, Any] = CAPTION_GEN) -> List[Dict[str, Any]]:
+        """Caption the first ``n`` annotated images and ask the evaluator about each caption.
+
+        Returns:
+            ``per_image_details``, the records :meth:`score` takes (also in :meth:`format_results`).
+        """
+        super().run(loader, model, n, gen)
+        return self._image_details
 
     def evaluate(
         self,
