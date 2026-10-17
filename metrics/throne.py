@@ -316,6 +316,8 @@ class ThroneMetric(BaseMetric):
         if ds not in ("coco", "vg"):
             raise ValueError(f"unknown dataset {ds!r}; expected 'coco' or 'vg'")
         if loader is not None:
+            if "object_categories" in kw:
+                raise ValueError("pass either loader or object_categories, not both")
             kw["object_categories"] = object_names(loader) if ds == "coco" else pool_objects(loader)
         metric = cls(min_support=MIN_SUPPORT if ds == "vg" else None, **kw)
         metric.dataset = ds
@@ -331,6 +333,9 @@ class ThroneMetric(BaseMetric):
         Under ``cache_only`` the weights never load, so a miss raises.
         """
         model_id, revision = parse_model_name(self._evaluator_model_name)
+        if revision == "unpinned":
+            logger.warning("THRONE evaluator %r is keyed as unpinned and misses snapshot-pinned cache rows; "
+                           "pass a snapshot path via --throne-evaluator or MIRAGE_THRONE_EVALUATOR_MODEL", model_id)
         cache = self._evaluator_cache
         if cache is None and os.environ.get("MIRAGE_CACHE_DISABLE") != "1":
             cache = (SQLiteResponseCache(evaluator_cache_path(), readonly=True) if self._cache_only

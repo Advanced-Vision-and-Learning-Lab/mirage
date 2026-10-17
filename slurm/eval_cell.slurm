@@ -7,8 +7,9 @@
 #       sbatch --time=01:00:00 --job-name=qwen2vl_coco_pope slurm/eval_cell.slurm
 #
 # Give each cell its own MIRAGE_CACHE_DIR (one SQLite writer per file). A resubmitted
-# cell resumes from that cache. THRONE reuses the captions cell's cache dir and should
-# pass MIRAGE_EXTRA_ARGS="--cache-only" so a caption miss fails instead of regenerating.
+# cell resumes from that cache. THRONE reuses the captions cell's cache dir. --cache-only
+# freezes both the caption and the evaluator caches (a miss raises), so use it to replay
+# a scored THRONE cell; a new THRONE cell must omit it so the evaluator can fill its cache.
 # Set MIRAGE_<KEY>_MODEL_PATH to an HF snapshot path (.../snapshots/<sha>) so cache
 # keys pin the model revision; a bare model id is keyed as "unpinned".
 # CPU-only cache replays: sbatch --partition=short --gres=none ...

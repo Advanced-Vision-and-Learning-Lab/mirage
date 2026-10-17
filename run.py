@@ -116,7 +116,6 @@ def _evaluate(args, model, loader, all_objects):
     elif args.metric == "throne":
         from metrics.throne import ThroneMetric
 
-        # VG THRONE asks about the pool's object names, not all of objects.json.
         metric = ThroneMetric.for_dataset(DS[args.dataset], loader, evaluator_model_name=args.throne_evaluator,
                                           distractor_ratio=args.throne_distractor_ratio,
                                           evaluator_max_tokens=args.throne_evaluator_max_tokens,
