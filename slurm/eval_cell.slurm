@@ -3,8 +3,8 @@
 # Settings come from the environment, so a launcher can submit many cells:
 #
 #   MIRAGE_VL_MODEL=qwen2vl-2b MIRAGE_DATASET=coco MIRAGE_METRIC=pope MIRAGE_SAMPLES=500 \
-#   MIRAGE_CACHE_DIR=$PWD/cache/qwen2vl_coco_pope \
-#       sbatch --time=01:00:00 --job-name=qwen2vl_coco_pope slurm/eval_cell.slurm
+#   MIRAGE_CACHE_DIR=$PWD/cache/qwen2vl-2b_coco_pope \
+#       sbatch --time=01:00:00 --job-name=qwen2vl-2b_coco_pope slurm/eval_cell.slurm
 #
 # Give each cell its own MIRAGE_CACHE_DIR (one SQLite writer per file). A resubmitted
 # cell resumes from that cache. THRONE reuses the captions cell's cache dir. --cache-only

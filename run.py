@@ -3,10 +3,11 @@
     python run.py --dataset coco --metric pope --samples 10
     python run.py --dataset visual_genome --metric chair --samples 10
 
-Datasets default to datasets/{coco,visual_genome}; model paths come from the
-MIRAGE_*_MODEL_PATH variables. POPE, ROPE, CHAIR and THRONE results also carry
-"judged" (the judged scores, from the frozen verdicts in judgments/), or
-"missing_verdicts" when some items have none.
+Datasets default to datasets/{coco,visual_genome} in the repository; model paths come
+from the MIRAGE_*_MODEL_PATH variables. Results carry "judged", the judged scores from the
+frozen verdicts in judgments/ ("head" is the published headline), or "missing_verdicts" when
+some items have none; --live-judge grades a new model's missing caption mentions with Claude
+(ROPE answers have no live judge). "config" records what produced the file.
 """
 
 import argparse
@@ -19,8 +20,8 @@ from metrics.pope import QUESTIONS_PER_IMAGE
 from predict.factory import REGISTRY as MODEL_REGISTRY
 
 logger = logging.getLogger("mirage.run")
+ROOT = Path(__file__).resolve().parent
 DS = {"coco": "coco", "visual_genome": "vg"}  # --dataset -> the key metrics use (POOL, CAPTION_PROMPTS)
-JUDGED = ("pope", "rope", "chair", "throne")
 
 
 def _parse_args(argv=None):
@@ -46,6 +47,8 @@ def _parse_args(argv=None):
     p.add_argument("--cache-only", action="store_true", help="never load the model; fail on a cache miss")
     p.add_argument("--judgments", type=Path, default=None,
                    help="judge verdicts directory (default: $MIRAGE_JUDGMENTS_DIR, else judgments/)")
+    p.add_argument("--live-judge", action="store_true",
+                   help="grade caption mentions with no stored verdict with Claude ($MIRAGE_CLAUDE_BIN, else claude)")
     p.add_argument("--verbose", action="store_true")
     return p.parse_args(argv)
 
@@ -55,19 +58,23 @@ def _load_dataset(args):
     from dataloader.visual_genome import VisualGenomeDataLoader
 
     if args.dataset == "coco":
-        root = Path("datasets/coco")
+        root = ROOT / "datasets/coco"
         loader = COCODataLoader(data_path=args.annotations or root / "annotations" / f"instances_{args.split}.json",
                                 images_path=args.images or root / args.split)
     else:
-        root = Path("datasets/visual_genome")
+        root = ROOT / "datasets/visual_genome"
         loader = VisualGenomeDataLoader(data_path=args.annotations or root / "objects.json",
                                         images_path=args.images or root / "VG_100K")
+    loader.load_data(max_samples=_pool_size(args))
+    return loader
+
+
+def _pool_size(args) -> int:
     if args.metric == "rope":
         from metrics.rope import ROPEMetric as metric_cls
     else:
         metric_cls = BaseMetric
-    loader.load_data(max_samples=args.pool_size or metric_cls.POOL[DS[args.dataset]])
-    return loader
+    return args.pool_size or metric_cls.POOL[DS[args.dataset]]
 
 
 def _run_dataset_metric(args, model=None, judge=None, evaluator=None):
@@ -78,10 +85,9 @@ def _run_dataset_metric(args, model=None, judge=None, evaluator=None):
     if not len(loader):
         raise RuntimeError("No images were loaded. Check the annotation and image paths.")
     # The judged scores' inputs are checked first, so a missing one fails before any generation.
-    if args.metric in JUDGED:
-        _check_judged_inputs(args)
-        if judge is None:
-            judge = Judge.load(args.judgments)
+    _check_judged_inputs(args)
+    if judge is None and not (args.metric == "throne" and args.dataset == "coco"):  # COCO THRONE reads no verdicts
+        judge = Judge.load(args.judgments, live=args.live_judge)
     # --cache-only opens the prediction cache read-only: a replay never writes to it, and a miss raises.
     if model is None:
         model = build_predictor(args.model, cache_only=args.cache_only)
@@ -90,6 +96,7 @@ def _run_dataset_metric(args, model=None, judge=None, evaluator=None):
     try:
         results = _evaluate(args, model, loader, judge, evaluator)
         results["cache_stats"] = dict(getattr(model, "stats", {}))
+        results["config"] = _config(args, model, loader)
         return results
     finally:
         model.unload_model()
@@ -97,7 +104,7 @@ def _run_dataset_metric(args, model=None, judge=None, evaluator=None):
 
 def _captions_json(args) -> Path:
     """COCO reference captions, next to the instances annotations."""
-    annotations = args.annotations.parent if args.annotations else Path("datasets/coco/annotations")
+    annotations = args.annotations.parent if args.annotations else ROOT / "datasets/coco/annotations"
     return annotations / f"captions_{args.split}.json"
 
 
@@ -125,13 +132,28 @@ def _check_judged_inputs(args):
             nltk.data.find("corpora/stopwords")  # the Visual Genome CHAIR vocabulary
 
 
+def _config(args, model, loader) -> dict:
+    """What produced the results: the model's cache identity and the protocol settings."""
+    backend = getattr(model, "backend", None)
+    return {"model": getattr(model, "model_key", args.model), "model_identity": backend.identity() if backend else None,
+            "dataset": args.dataset, "metric": args.metric, "samples": args.samples, "pool_size": _pool_size(args),
+            "images_skipped": loader.skipped, "max_new_tokens": args.max_new_tokens,
+            "pope_questions": args.pope_questions, "cache_only": args.cache_only, "live_judge": args.live_judge}
+
+
 def _judged(score):
     """The cell's judged scores, ``{"judged": score()}``, or the items with no stored verdict."""
     try:
         return {"judged": score()}
     except MissingVerdicts as e:
-        logger.warning("No judged scores: %s", e)
+        logger.error("No judged scores: %s", e)
         return {"missing_verdicts": [list(item) for item in e.items]}
+
+
+def _image_paths(args, loader, n: int):
+    """item -> image file for the live judge (None without --live-judge)."""
+    ds = DS[args.dataset]
+    return {f"{ds}_{s['image_id']}": s["image_path"] for s in annotated(loader, n)} if args.live_judge else None
 
 
 def _evaluate(args, model, loader, judge, evaluator=None):
@@ -143,6 +165,9 @@ def _evaluate(args, model, loader, judge, evaluator=None):
 
         metric = POPEMetric(num_questions_per_image=args.pope_questions)
         records = metric.run(loader, model, n=args.samples)
+        if args.pope_questions != QUESTIONS_PER_IMAGE:  # the drop list vets the published question set only
+            logger.error("No judged POPE: the drop list covers %d questions per image", QUESTIONS_PER_IMAGE)
+            return metric.format_results()
         return {**metric.format_results(), **_judged(lambda: metric.score(records, judge("pope", records, ds=ds)))}
 
     if args.metric == "rope":
@@ -159,7 +184,8 @@ def _evaluate(args, model, loader, judge, evaluator=None):
         # The VG vocabulary is built before generation (it needs NLTK data).
         metric = ChairMetric.for_dataset(ds, loader)
         images = metric.run(loader, model, n=args.samples, gen=gen)
-        return {**metric.format_results(), **_judged(lambda: _chair_judged(args, metric, images, model, judge, ds))}
+        return {**metric.format_results(),
+                **_judged(lambda: _chair_judged(args, metric, images, model, judge, ds, loader))}
     if args.metric == "throne":
         from metrics.throne import ThroneMetric
 
@@ -168,19 +194,20 @@ def _evaluate(args, model, loader, judge, evaluator=None):
                                           evaluator_max_tokens=args.throne_evaluator_max_tokens,
                                           cache_only=args.cache_only, evaluator=evaluator)
         details = metric.run(loader, model, n=args.samples, gen=gen)
-        return {**metric.format_results(), **_judged(lambda: _throne_judged(metric, details, loader, model, judge, ds))}
-    raise ValueError(f"Unsupported metric for image datasets: {args.metric}")
+        return {**metric.format_results(),
+                **_judged(lambda: _throne_judged(args, metric, details, loader, model, judge, ds))}
+    raise ValueError(f"Unsupported metric: {args.metric}")
 
 
-def _chair_judged(args, metric, images, model, judge, ds):
+def _chair_judged(args, metric, images, model, judge, ds, loader):
     """Mod-CHAIR of this model: its judged mentions, with the frozen committee's words in the coverage pool."""
     # CHAIR paper: objects named in the reference captions count as present
     refs = metric.reference_objects(_captions_json(args), images) if ds == "coco" else {}
-    verdicts = judge("mentions", images, refs=refs)
+    verdicts = judge("mentions", images, refs=refs, image_paths=_image_paths(args, loader, len(images)))
     return metric.score(images, verdicts, refs, judge.committee(ds, images))[verdict_key(model)]
 
 
-def _throne_judged(metric, details, loader, model, judge, ds):
+def _throne_judged(args, metric, details, loader, model, judge, ds):
     """THRONE class-wise F0.5; on Visual Genome the labels are completed with the words verified
     present (the frozen committee's and this model's judged mentions)."""
     present = None
@@ -191,7 +218,9 @@ def _throne_judged(metric, details, loader, model, judge, ds):
         images = ChairMetric.for_dataset(ds, loader).images(
             ds, annotated(loader, len(details)), [d["caption"] for d in details], verdict_key(model))
         committee = judge.committee(ds, images)
-        verified = ChairMetric.verified_present(images, judge("mentions", images))
+        verdicts = judge("mentions", images, image_paths=_image_paths(args, loader, len(images)))
+        ChairMetric.score(images, verdicts)  # raises MissingVerdicts for this model's unjudged mentions
+        verified = ChairMetric.verified_present(images, verdicts)
         present = completed_labels([committee[img["item"]]["verified"] | v for img, v in zip(images, verified)])
     return metric.score(details, is_present=present)
 

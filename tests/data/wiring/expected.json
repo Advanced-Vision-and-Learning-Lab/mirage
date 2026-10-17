@@ -72,6 +72,26 @@
    "num_sentences": 2,
    "recall": 0.42105263157894735
   },
+  "config": {
+   "cache_only": true,
+   "dataset": "coco",
+   "images_skipped": 0,
+   "live_judge": false,
+   "max_new_tokens": 512,
+   "metric": "chair",
+   "model": "gemma4-e4b",
+   "model_identity": {
+    "class_name": "HFChatVLM",
+    "dtype": "torch.bfloat16",
+    "model_id": "google/gemma-4-E4B-it",
+    "provider": "local",
+    "quantization": "none",
+    "revision": "ee0ef6023621cff504d758262d4e04895a5af4a2"
+   },
+   "pool_size": 2000,
+   "pope_questions": 6,
+   "samples": 2
+  },
   "hallucinated_objects": {
    "bowl": 3
   },
@@ -98,6 +118,26 @@
    "bypassed": 0,
    "hits": 12,
    "misses": 0
+  },
+  "config": {
+   "cache_only": true,
+   "dataset": "coco",
+   "images_skipped": 0,
+   "live_judge": false,
+   "max_new_tokens": 512,
+   "metric": "pope",
+   "model": "gemma4-e4b",
+   "model_identity": {
+    "class_name": "HFChatVLM",
+    "dtype": "torch.bfloat16",
+    "model_id": "google/gemma-4-E4B-it",
+    "provider": "local",
+    "quantization": "none",
+    "revision": "ee0ef6023621cff504d758262d4e04895a5af4a2"
+   },
+   "pool_size": 2000,
+   "pope_questions": 6,
+   "samples": 2
   },
   "f1_score": 0.8333333333333334,
   "judged": {
@@ -151,6 +191,26 @@
    "bypassed": 0,
    "hits": 10,
    "misses": 0
+  },
+  "config": {
+   "cache_only": true,
+   "dataset": "coco",
+   "images_skipped": 0,
+   "live_judge": false,
+   "max_new_tokens": 512,
+   "metric": "rope",
+   "model": "gemma4-e4b",
+   "model_identity": {
+    "class_name": "HFChatVLM",
+    "dtype": "torch.bfloat16",
+    "model_id": "google/gemma-4-E4B-it",
+    "provider": "local",
+    "quantization": "none",
+    "revision": "ee0ef6023621cff504d758262d4e04895a5af4a2"
+   },
+   "pool_size": 3000,
+   "pope_questions": 6,
+   "samples": 2
   },
   "judged": {
    "correct_incl_unsure_as_wrong": 0.1,
@@ -306,6 +366,26 @@
     "recall": 1.0,
     "tp": 1
    }
+  },
+  "config": {
+   "cache_only": true,
+   "dataset": "coco",
+   "images_skipped": 0,
+   "live_judge": false,
+   "max_new_tokens": 512,
+   "metric": "throne",
+   "model": "gemma4-e4b",
+   "model_identity": {
+    "class_name": "HFChatVLM",
+    "dtype": "torch.bfloat16",
+    "model_id": "google/gemma-4-E4B-it",
+    "provider": "local",
+    "quantization": "none",
+    "revision": "ee0ef6023621cff504d758262d4e04895a5af4a2"
+   },
+   "pool_size": 2000,
+   "pope_questions": 6,
+   "samples": 2
   },
   "judged": {
    "P": 0.9375,
@@ -541,6 +621,26 @@
    "num_sentences": 2,
    "recall": 0.19047619047619047
   },
+  "config": {
+   "cache_only": true,
+   "dataset": "visual_genome",
+   "images_skipped": 1,
+   "live_judge": false,
+   "max_new_tokens": 512,
+   "metric": "chair",
+   "model": "gemma4-e4b",
+   "model_identity": {
+    "class_name": "HFChatVLM",
+    "dtype": "torch.bfloat16",
+    "model_id": "google/gemma-4-E4B-it",
+    "provider": "local",
+    "quantization": "none",
+    "revision": "ee0ef6023621cff504d758262d4e04895a5af4a2"
+   },
+   "pool_size": 2000,
+   "pope_questions": 6,
+   "samples": 2
+  },
   "hallucinated_objects": {
    "brick": 2,
    "buildings": 2,
@@ -586,6 +686,26 @@
    "bypassed": 0,
    "hits": 12,
    "misses": 0
+  },
+  "config": {
+   "cache_only": true,
+   "dataset": "visual_genome",
+   "images_skipped": 1,
+   "live_judge": false,
+   "max_new_tokens": 512,
+   "metric": "pope",
+   "model": "gemma4-e4b",
+   "model_identity": {
+    "class_name": "HFChatVLM",
+    "dtype": "torch.bfloat16",
+    "model_id": "google/gemma-4-E4B-it",
+    "provider": "local",
+    "quantization": "none",
+    "revision": "ee0ef6023621cff504d758262d4e04895a5af4a2"
+   },
+   "pool_size": 2000,
+   "pope_questions": 6,
+   "samples": 2
   },
   "f1_score": 0.923076923076923,
   "judged": {
@@ -638,6 +758,26 @@
    "bypassed": 0,
    "hits": 10,
    "misses": 0
+  },
+  "config": {
+   "cache_only": true,
+   "dataset": "visual_genome",
+   "images_skipped": 1,
+   "live_judge": false,
+   "max_new_tokens": 512,
+   "metric": "rope",
+   "model": "gemma4-e4b",
+   "model_identity": {
+    "class_name": "HFChatVLM",
+    "dtype": "torch.bfloat16",
+    "model_id": "google/gemma-4-E4B-it",
+    "provider": "local",
+    "quantization": "none",
+    "revision": "ee0ef6023621cff504d758262d4e04895a5af4a2"
+   },
+   "pool_size": 2000,
+   "pope_questions": 6,
+   "samples": 2
   },
   "judged": {
    "correct_incl_unsure_as_wrong": 0.5,
