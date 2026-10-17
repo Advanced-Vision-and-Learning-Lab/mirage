@@ -23,7 +23,7 @@ logger = logging.getLogger("mirage.run")
 DS = {"coco": "coco", "visual_genome": "vg"}  # --dataset -> the key metrics use (POOL, CAPTION_PROMPTS)
 
 
-def _parse_args():
+def _parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--dataset", choices=("coco", "visual_genome"), default="coco")
     p.add_argument("--metric", choices=("pope", "chair", "rope", "throne", "faithscore", "nope"), default="chair")
@@ -45,7 +45,7 @@ def _parse_args():
     p.add_argument("--cache-only", action="store_true", help="never load the model; fail on a cache miss")
     p.add_argument("--llama-model", default=os.getenv("MIRAGE_LLAMA_MODEL_PATH"))
     p.add_argument("--verbose", action="store_true")
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
 def _load_dataset(args):
@@ -150,8 +150,9 @@ def _run_nope(args):
     metric = NOPEMetric(turn2_path=str(args.nope_turn2), image_dir=str(image_dir),
                         turn1_path=str(args.nope_turn1) if args.nope_turn1 else None)
     records = metric.records[:args.samples]
-    model = build_predictor(args.model or "paligemma")
-    model.load_model()
+    model = build_predictor(args.model or "paligemma", cache_only=args.cache_only)
+    if not args.cache_only:
+        model.load_model()
     outputs = []
     try:
         for record in records:
@@ -162,8 +163,7 @@ def _run_nope(args):
                 outputs.append("")
                 continue
             with Image.open(found[0]) as image:
-                outputs.append(model.generate(image=image.convert("RGB"), prompt=record["question"],
-                                              max_new_tokens=20, do_sample=False))
+                outputs.append(model.generate(image=image.convert("RGB"), prompt=record["question"], **metric.GEN))
     finally:
         model.unload_model()
     metric.records = records
@@ -171,12 +171,14 @@ def _run_nope(args):
     return metric.format_results()
 
 
-def main():
-    args = _parse_args()
+def main(argv=None):
+    args = _parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     if args.samples < 1:
         raise SystemExit("--samples must be positive")
+    if args.cache_only and args.metric == "faithscore":
+        raise SystemExit("--cache-only does not cover FaithScore: its verifier and Llama always load")
     results = _run_nope(args) if args.metric == "nope" else _run_dataset_metric(args)
     rendered = json.dumps(results, indent=2, default=str)
     print(rendered)
