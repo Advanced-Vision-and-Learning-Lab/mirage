@@ -35,6 +35,8 @@ class HFChatVLM(BaseModel):
         torch_dtype: Weight dtype (default: bfloat16).
     """
 
+    cache_name = "HFChatVLM"
+
     def __init__(
         self,
         model_name: str,

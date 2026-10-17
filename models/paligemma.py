@@ -34,6 +34,8 @@ class PaligemmaModel(BaseModel):
         device: PyTorch device for model execution
     """
 
+    cache_name = "PaligemmaModel"
+
     def __init__(
         self,
         model_name: str = "google/paligemma-3b-mix-224",

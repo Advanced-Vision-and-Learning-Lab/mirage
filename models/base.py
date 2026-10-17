@@ -7,7 +7,7 @@ or locally hosted models.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Union, Tuple, Literal
+from typing import Any, ClassVar, Dict, Optional, Union, Tuple, Literal
 from pathlib import Path
 from PIL import Image
 import logging
@@ -39,6 +39,10 @@ class BaseModel(ABC):
         quantization (Optional[str]): Quantization method ('int4', 'int8', 'none')
         _logger (logging.Logger): Logger instance for the model
     """
+
+    # Model name in every prediction cache key. Pinned per family so moving or
+    # renaming a class never changes keys; None falls back to the class name.
+    cache_name: ClassVar[Optional[str]] = None
 
     def __init__(
         self,

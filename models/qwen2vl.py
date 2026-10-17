@@ -35,6 +35,8 @@ class Qwen2VLModel(BaseModel):
         device: PyTorch device for model execution
     """
 
+    cache_name = "Qwen2VLModel"
+
     def __init__(
         self,
         model_name: str = "Qwen/Qwen2-VL-2B-Instruct",

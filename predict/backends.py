@@ -35,7 +35,9 @@ class LocalModelBackend:
             model_id, revision = parse_model_name(self.model.model_name)
             self._identity = {
                 "provider": "local",
-                "class_name": type(self.model).__name__,
+                # Pinned by the model class (BaseModel.cache_name) so the key
+                # survives moves and renames; plain objects use their class name.
+                "class_name": getattr(self.model, "cache_name", None) or type(self.model).__name__,
                 "model_id": model_id,
                 "revision": revision,
                 "quantization": getattr(self.model, "quantization", None) or "none",
