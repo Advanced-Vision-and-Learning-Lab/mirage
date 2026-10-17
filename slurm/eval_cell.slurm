@@ -41,7 +41,7 @@ export MIRAGE_CACHE_DIR
 
 name="${SLURM_JOB_NAME:-local}"
 # shellcheck disable=SC2086  # MIRAGE_EXTRA_ARGS is a list of flags
-python demo.py \
+python run.py \
     --model "${MIRAGE_VL_MODEL:?set MIRAGE_VL_MODEL}" \
     --dataset "${MIRAGE_DATASET:?set MIRAGE_DATASET}" \
     --metric "${MIRAGE_METRIC:?set MIRAGE_METRIC}" \

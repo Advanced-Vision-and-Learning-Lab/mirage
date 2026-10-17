@@ -15,11 +15,12 @@ class POPEMetric(BaseMetric):
     """
 
     MODES = ["random", "popular"]
+    GEN = {"max_new_tokens": 10, "do_sample": False}
 
     def __init__(self,
                  mode: str = "random",
                  yes_ratio: float = 0.5,
-                 num_questions_per_image: int = 10,
+                 num_questions_per_image: int = 6,
                  popular_objects_list: Optional[List[str]] = None,
                  seed: int = 42):
         """
