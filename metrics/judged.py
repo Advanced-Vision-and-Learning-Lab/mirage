@@ -283,8 +283,8 @@ def mention_records(root: Path, ds: str) -> Tuple[List[Dict], Dict[str, set]]:
 
     loader = _loader(root, ds, 2000)
     if ds == "vg":
-        from demo import _vg_chair_vocabulary
-        vocab = _vg_chair_vocabulary(loader.get_object_names())
+        from metrics.chair import vg_vocabulary
+        vocab = vg_vocabulary(loader.get_object_names())
         chair = ChairMetric(object_synsets={n: [n] for n in vocab}, use_coco_synonyms=False)
     else:
         chair = ChairMetric(use_coco_synonyms=True)
