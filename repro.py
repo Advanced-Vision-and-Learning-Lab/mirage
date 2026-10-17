@@ -1,12 +1,15 @@
-"""Judged hallucination metrics: Mod-POPE, Mod-ROPE, Mod-CHAIR and THRONE class-wise F0.5.
+"""Rebuild the published judged table (Mod-POPE, Mod-ROPE, Mod-CHAIR, THRONE class-wise F0.5) from a results tree.
 
-Each metric is rescored from cached model outputs plus static judge files in
-``judgments/`` (verdicts and the POPE drop list). Scoring never calls a judge:
-a verdict missing for an item raises :class:`MissingVerdicts`, and the item is
-then graded with ``tools/judge``. Definitions are in ``docs/methodology.mdx``.
+The manual check of all 612 published values. Each metric is rescored with its own
+``score`` from cached model outputs plus the frozen judge files (``judge.VerdictStore``:
+verdicts and the POPE drop list). Scoring never calls a judge: a verdict missing for an
+item raises :class:`MissingVerdicts`. The literals below (500 images, pools of 2000 and
+3000, MODELS, OLD, VG_W1024) are frozen to the reference runs and never follow the
+metrics' defaults.
 
-    python -m metrics.judged --root /path/to/mirage-tree --out final_tables.json
-    python -m metrics.judged --table tests/data/final_tables.json --csv docs/model-results.csv --docs-tables
+    python repro.py --root /path/to/mirage-tree --check            # Python 3.12+; exit 1 on any difference
+    python repro.py --root /path/to/mirage-tree --export-committee judgments/committee.json
+    python repro.py --table judgments/final_tables.json --csv model-results.csv
 
 ``--root`` is a tree with ``datasets/``, ``cache/`` and ``results/`` laid out as
 in the reference runs (see ``MODELS`` and the ``*_path`` helpers).
@@ -17,9 +20,9 @@ import csv
 import json
 from collections import Counter
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from judge.store import load_drop_list, load_verdicts
+from judge.store import VerdictStore
 
 N_IMAGES = 500
 DATASETS = {"coco": "COCO", "vg": "Visual Genome"}
@@ -141,13 +144,15 @@ def mention_records(root: Path, ds: str) -> Tuple[List[Dict], Dict[str, set]]:
     return images, chair.reference_objects(root / "datasets/coco/annotations/captions_val2017.json", images)
 
 
-def build_table(root: Path) -> Dict[str, Dict]:
+def build_table(root: Path, store: Optional[VerdictStore] = None) -> Dict[str, Dict]:
+    """The published table rebuilt from ``root``; verdicts from ``store`` (default :meth:`VerdictStore.open`)."""
     from metrics.chair import ChairMetric
     from metrics.pope import POPEMetric
     from metrics.rope import ROPEMetric
     from metrics.throne import ThroneMetric, completed_labels
 
-    drop, mentions, rope_v = load_drop_list(), load_verdicts("mentions"), load_verdicts("rope")
+    store = store or VerdictStore.open()
+    mentions, rope_v = store.verdicts("mentions"), store.verdicts("rope")
     table = {}
     for ds in DATASETS:
         pope, rope = pope_records(root, ds), rope_records(root, ds)
@@ -162,7 +167,7 @@ def build_table(root: Path) -> Dict[str, Dict]:
             details = json.load(open(throne_path(root, model, ds)))["per_image_details"][:N_IMAGES]
             if any(d["caption"] != img["models"][model]["caption"] for d, img in zip(details, images)):
                 raise ValueError(f"{model} {ds}: THRONE captions are not aligned with the caption run")
-            rows[model] = {"POPE": POPEMetric.score(pope[model], drop.get(ds, {})),
+            rows[model] = {"POPE": POPEMetric.score(pope[model], store.drop_list(ds)),
                            "ROPE": ROPEMetric.score(rope[model], rope_v),
                            "CHAIR": chair[model], "THRONE": throne.score(details, support, present)}
         for metric in ("POPE", "ROPE", "CHAIR", "THRONE"):
@@ -176,7 +181,7 @@ def build_table(root: Path) -> Dict[str, Dict]:
 
 
 # ----------------------------------------------------------------------
-# Docs output
+# Outputs
 # ----------------------------------------------------------------------
 
 def write_csv(table: Dict, path: Path) -> None:
@@ -190,39 +195,98 @@ def write_csv(table: Dict, path: Path) -> None:
                 w.writerow([name, label, *(f"{r[k]['head']:.3f}" for k in ("POPE", "ROPE", "CHAIR", "THRONE"))])
 
 
-def docs_tables(table: Dict) -> str:
-    """Raw → Mod appendix tables (percent) for docs/methodology.mdx."""
-    lines = []
-    for ds, label in DATASETS.items():
-        lines += [f"**{label}**", "", "| Model | POPE acc → bal. acc → Mod-POPE | ROPE strict → Mod-ROPE "
-                  "| CHAIR-I ↓ → Mod-CHAIR F0.5 ↑ | THRONE paper-style → Mirage |", "| --- | --- | --- | --- | --- |"]
-        for m, name in MODELS.items():
-            r = table[ds][m]
-            cells = [" → ".join(f"{r[k][x] * 100:.1f}" for x in ("raw", "raw_balanced", "head") if x in r[k])
-                     for k in ("POPE", "ROPE", "CHAIR", "THRONE")]
-            lines.append(f"| {name} | " + " | ".join(cells) + " |")
-        lines.append("")
-    return "\n".join(lines)
+def build_committee(root: Path, store: Optional[VerdictStore] = None) -> Dict[str, Dict[str, Dict[str, List[str]]]]:
+    """committee.json: per dataset and item, the words the frozen pool (``MODELS``) resolved present
+    (Mod-CHAIR's coverage pool) and its verified-present words (Visual Genome THRONE's completed labels)."""
+    from metrics.base_metric import MIN_WORDS
+    from metrics.chair import ChairMetric, _resolve
+
+    mentions = (store or VerdictStore.open()).verdicts("mentions")
+    out = {}
+    for ds in DATASETS:
+        images, refs = mention_records(root, ds)
+        out[ds] = {img["item"]: {
+            "present": sorted({x["word"] for m, c in img["models"].items() if len(c["caption"].split()) >= MIN_WORDS
+                               for x in c["mentions"]
+                               if _resolve(img["item"], m, x, mentions, refs.get(img["item"], ())) == "present"}),
+            "verified": sorted(vp)} for img, vp in zip(images, ChairMetric.verified_present(images, mentions))}
+    return out
 
 
-def main() -> None:
+def _leaves(node, path=()):
+    if isinstance(node, dict):
+        for k, v in node.items():
+            yield from _leaves(v, path + (k,))
+    else:
+        yield path, node
+
+
+def _preflight() -> None:
+    """--check needs Python 3.12+ and the NLTK data, and never downloads it."""
+    import sys
+
+    import nltk
+
+    if sys.version_info < (3, 12):
+        # The reference sums class-wise THRONE P and R in another order; only 3.12's sum() agrees to the last bit.
+        raise SystemExit(f"--check needs Python 3.12 or newer, not {sys.version.split()[0]}")
+    for resource in ("tokenizers/punkt_tab", "taggers/averaged_perceptron_tagger_eng", "corpora/stopwords",
+                     "corpora/wordnet"):
+        nltk.data.find(resource)
+    from nltk.corpus import wordnet
+
+    if wordnet.get_version() != "3.0":
+        raise SystemExit(f"--check needs WordNet 3.0, not {wordnet.get_version()}")
+
+
+def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--root", type=Path, help="Results tree to rescore")
     parser.add_argument("--table", type=Path, help="Existing table JSON instead of --root")
+    parser.add_argument("--judgments", type=Path,
+                        help="Judgments directory (default $MIRAGE_JUDGMENTS_DIR, else judgments/)")
     parser.add_argument("--out", type=Path, help="Write the table JSON here")
     parser.add_argument("--csv", type=Path, help="Write the headline CSV here")
-    parser.add_argument("--docs-tables", action="store_true", help="Print the raw → Mod appendix tables")
-    args = parser.parse_args()
+    parser.add_argument("--check", nargs="?", const=True, metavar="REF",
+                        help="Compare every value with REF (default: the store's final_tables.json) and "
+                             "with the store's committee.json if it has one; exit 1 on any difference")
+    parser.add_argument("--export-committee", type=Path, metavar="OUT", help="Write committee.json here")
+    args = parser.parse_args(argv)
     if bool(args.root) == bool(args.table):
         parser.error("pass exactly one of --root and --table")
-    table = build_table(args.root) if args.root else json.load(open(args.table))["table"]
+    if (args.check or args.export_committee) and not args.root:
+        parser.error("--check and --export-committee need --root")
+    if args.check:
+        _preflight()
+    if args.table:
+        table, store = json.load(open(args.table))["table"], None
+    else:
+        store = VerdictStore.open(args.judgments)  # frozen only; checks every file's sha256
+        table = build_table(args.root, store)
     if args.out:
         json.dump({"table": table, "models": MODELS}, open(args.out, "w"), indent=1)
     if args.csv:
         write_csv(table, args.csv)
-    if args.docs_tables:
-        print(docs_tables(table))
+    status = 0
+    if args.check:
+        ref = store.reference_table() if args.check is True else json.load(open(args.check))["table"]
+        want, got = dict(_leaves(ref)), dict(_leaves(table))
+        bad = sorted(p for p in want.keys() | got.keys() if want.get(p, "missing") != got.get(p, "missing"))
+        print(f"{len(want)} reference values, {len(got)} rebuilt, {len(bad)} differ")
+        for p in bad[:20]:
+            print("  ", "/".join(map(str, p)), want.get(p, "missing"), got.get(p, "missing"))
+        status = int(bool(bad))
+    shipped = {ds: store.committee(ds) for ds in DATASETS} if store else {}
+    if args.export_committee or (args.check and any(shipped.values())):
+        com = build_committee(args.root, store)
+        if args.export_committee:
+            args.export_committee.write_text(json.dumps(com, indent=1) + "\n")
+        rebuilt = {ds: {i: {k: set(v) for k, v in r.items()} for i, r in com[ds].items()} for ds in DATASETS}
+        if args.check and any(shipped.values()) and rebuilt != shipped:
+            print("committee.json differs from the committee rebuilt from the tree")
+            status = 1
+    return status
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
