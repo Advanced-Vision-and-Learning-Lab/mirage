@@ -39,11 +39,12 @@ def _parse_args():
     p.add_argument("--output", type=Path, default=None, help="JSON results path")
     p.add_argument("--nope-turn2", type=Path, help="NOPE turn-two results JSON")
     p.add_argument("--nope-turn1", type=Path, help="NOPE turn-one results JSON")
-    p.add_argument("--throne-evaluator", default=os.getenv("MIRAGE_THRONE_EVALUATOR_MODEL", "google/flan-t5-base"))
+    p.add_argument("--throne-evaluator", default=None,
+                   help="evaluator HF id or snapshot path (default: $MIRAGE_THRONE_EVALUATOR_MODEL, else google/flan-t5-xl)")
     p.add_argument("--throne-distractor-ratio", type=float, default=None,
-                   help="distractors per ground-truth object (default: full vocabulary)")
+                   help="distractors per ground-truth object (default 38; 0 asks about the full vocabulary)")
     p.add_argument("--throne-evaluator-max-tokens", type=int, default=None,
-                   help="evaluator input window; longer captions are trimmed (default 512)")
+                   help="evaluator input window; longer captions are trimmed (default 1024)")
     p.add_argument("--cache-only", action="store_true", help="never load the model; fail on a cache miss")
     p.add_argument("--llama-model", default=os.getenv("MIRAGE_LLAMA_MODEL_PATH"))
     p.add_argument("--verbose", action="store_true")

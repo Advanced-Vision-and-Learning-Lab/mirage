@@ -89,11 +89,16 @@ _PLURAL_CATEGORIES = {"skis", "scissors"}
 # raw generate call and as the CallableBackend defaults that enter cache keys.
 _EVALUATOR_GEN_CONFIG = {"max_new_tokens": 5, "do_sample": False}
 
+# Published protocol defaults. The evaluator id is a bare HF id (cache keys say
+# "unpinned"); set MIRAGE_THRONE_EVALUATOR_MODEL to a snapshot path to pin it.
+EVALUATOR = "google/flan-t5-xl"
+DISTRACTOR_RATIO = 38.0  # COCO's native distractor-to-positive ratio
+
 # FLAN-T5 was trained at 512 tokens. The evaluator prompt is
 # "Text: {caption}\n\n{instruction}\n\n{question}"; if it is longer than the
 # window only the caption is trimmed (from its end) so the question always
 # survives. T5 has no absolute positions, so a longer window is valid.
-_EVALUATOR_MAX_TOKENS = 512
+_EVALUATOR_MAX_TOKENS = 1024
 
 # Evaluator dtype name -> the str(torch.dtype) recorded in the cache identity; torch loads with the weights.
 _DTYPES = {"bfloat16": "torch.bfloat16", "float16": "torch.float16", "float32": "torch.float32"}
@@ -185,7 +190,9 @@ class ThroneMetric(BaseMetric):
         4. Compare predicted set vs ground-truth for precision/recall/F-scores
 
     Args:
-        evaluator_model_name: HuggingFace model name for the evaluator LM.
+        evaluator_model_name: HF id or snapshot path of the evaluator LM
+            (default ``$MIRAGE_THRONE_EVALUATOR_MODEL``, else
+            google/flan-t5-xl). Its id and revision are in the cache key.
         object_categories: List of object category names to check against.
             Defaults to COCO 80 categories.
         num_question_formats: Number of question format pairs to use (1-8).
@@ -201,7 +208,7 @@ class ThroneMetric(BaseMetric):
             same keys. Default ``$MIRAGE_THRONE_EVALUATOR_DTYPE`` or bfloat16.
         evaluator_cache: Cache for evaluator answers; None uses
             :func:`evaluator_cache_path`.
-        distractor_ratio: When set, ask about every ground-truth category plus
+        distractor_ratio: Ask about every ground-truth category plus
             ``round(ratio * len(gt))`` randomly chosen others, instead of the
             whole category set. Precision is governed by the distractor-to-
             positive ratio, so a fixed ratio is what makes the number
@@ -209,8 +216,10 @@ class ThroneMetric(BaseMetric):
             one; COCO's native ratio is ~38. Recall is unaffected because
             every ground-truth category is still asked. The draw is seeded
             from the caption, so it is reproducible without an image id.
+            Default ``$MIRAGE_THRONE_DISTRACTOR_RATIO``, else 38; 0 asks about
+            the whole category set.
         evaluator_max_tokens: Evaluator input window in tokens (default:
-            ``$MIRAGE_THRONE_EVALUATOR_MAX_TOKENS``, else 512). Captions longer
+            ``$MIRAGE_THRONE_EVALUATOR_MAX_TOKENS``, else 1024). Captions longer
             than the window minus the prompt are trimmed from the end, so the
             evaluator never sees their tail. It is part of the evaluator cache
             key, so changing it re-asks every question.
@@ -228,7 +237,7 @@ class ThroneMetric(BaseMetric):
 
     def __init__(
         self,
-        evaluator_model_name: str = "google/flan-t5-base",
+        evaluator_model_name: Optional[str] = None,
         object_categories: Optional[List[str]] = None,
         num_question_formats: int = 3,
         voting_threshold: Optional[float] = None,
@@ -245,7 +254,8 @@ class ThroneMetric(BaseMetric):
     ):
         super().__init__("throne")
 
-        self._evaluator_model_name = evaluator_model_name
+        self._evaluator_model_name = (evaluator_model_name or os.environ.get("MIRAGE_THRONE_EVALUATOR_MODEL")
+                                      or EVALUATOR)
         # Sorted: callers often pass set-derived lists whose order changes per
         # process, and predicted/disqualified lists follow category order, so
         # an unsorted list makes the results JSON differ between identical runs.
@@ -268,7 +278,7 @@ class ThroneMetric(BaseMetric):
         env_ratio = os.environ.get("MIRAGE_THRONE_DISTRACTOR_RATIO")
         if distractor_ratio is None and env_ratio:
             distractor_ratio = float(env_ratio)
-        self._distractor_ratio = distractor_ratio
+        self._distractor_ratio = DISTRACTOR_RATIO if distractor_ratio is None else distractor_ratio
         env_window = os.environ.get("MIRAGE_THRONE_EVALUATOR_MAX_TOKENS")
         if evaluator_max_tokens is None and env_window:
             evaluator_max_tokens = int(env_window)
@@ -461,7 +471,7 @@ class ThroneMetric(BaseMetric):
     def _categories_for(self, caption: str, gt_objects: List[str]) -> List[str]:
         """Category set to ask about for one image.
 
-        Without ``distractor_ratio`` this is the full set. With it, every
+        With ``distractor_ratio`` 0 this is the full set. Otherwise every
         ground-truth category plus a seeded random sample of others, so the
         distractor-to-positive ratio is constant across images and datasets.
         """
