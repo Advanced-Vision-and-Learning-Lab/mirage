@@ -1,10 +1,13 @@
 import random
 import re
+from types import MappingProxyType
 from typing import Dict, List, Any, Tuple, Optional
 import numpy as np
 from collections import Counter
 
 from .base_metric import BaseMetric
+
+QUESTIONS_PER_IMAGE = 6  # POPE questions per image (half yes): POPEMetric and run.py --pope-questions default
 
 class POPEMetric(BaseMetric):
     """
@@ -15,12 +18,12 @@ class POPEMetric(BaseMetric):
     """
 
     MODES = ["random", "popular"]
-    GEN = {"max_new_tokens": 10, "do_sample": False}
+    GEN = MappingProxyType({"max_new_tokens": 10, "do_sample": False})
 
     def __init__(self,
                  mode: str = "random",
                  yes_ratio: float = 0.5,
-                 num_questions_per_image: int = 6,
+                 num_questions_per_image: int = QUESTIONS_PER_IMAGE,
                  popular_objects_list: Optional[List[str]] = None,
                  seed: int = 42):
         """

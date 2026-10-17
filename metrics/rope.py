@@ -19,6 +19,7 @@ Reference:
 import re
 import logging
 from copy import deepcopy
+from types import MappingProxyType
 from typing import Any, Dict, List, Optional, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
@@ -74,8 +75,8 @@ class ROPEMetric(BaseMetric):
     Adapted from: https://github.com/sled-group/moh
     """
 
-    POOL = {"coco": 3000, "vg": 2000}
-    GEN = {"max_new_tokens": 30, "do_sample": False}
+    POOL = MappingProxyType({"coco": 3000, "vg": 2000})
+    GEN = MappingProxyType({"max_new_tokens": 30, "do_sample": False})
 
     def __init__(
         self,

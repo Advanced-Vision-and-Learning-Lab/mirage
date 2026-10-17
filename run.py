@@ -16,8 +16,10 @@ from pathlib import Path
 from PIL import Image
 
 from metrics.base_metric import CAPTION_GEN, CAPTION_PROMPTS, SAMPLES, BaseMetric
+from metrics.pope import QUESTIONS_PER_IMAGE
 
 logger = logging.getLogger("mirage.run")
+DS = {"coco": "coco", "visual_genome": "vg"}  # --dataset -> the key metrics use (POOL, CAPTION_PROMPTS)
 
 
 def _parse_args():
@@ -32,7 +34,7 @@ def _parse_args():
     p.add_argument("--images", type=Path, default=None)
     p.add_argument("--split", default="val2017", help="COCO split")
     p.add_argument("--max-new-tokens", type=int, default=CAPTION_GEN["max_new_tokens"], help="caption length cap")
-    p.add_argument("--pope-questions", type=int, default=6)
+    p.add_argument("--pope-questions", type=int, default=QUESTIONS_PER_IMAGE)
     p.add_argument("--output", type=Path, default=None, help="JSON results path")
     p.add_argument("--nope-turn2", type=Path, help="NOPE turn-two results JSON")
     p.add_argument("--nope-turn1", type=Path, help="NOPE turn-one results JSON")
@@ -57,15 +59,12 @@ def _load_dataset(args):
         root = Path("datasets/visual_genome")
         loader = VisualGenomeDataLoader(data_path=args.annotations or root / "objects.json",
                                         images_path=args.images or root / "VG_100K", shuffle=False)
-    from metrics.rope import ROPEMetric
-
-    pool = (ROPEMetric if args.metric == "rope" else BaseMetric).POOL[_key(args)]
-    loader.load_data(max_samples=args.pool_size or pool)
+    if args.metric == "rope":
+        from metrics.rope import ROPEMetric as metric_cls
+    else:
+        metric_cls = BaseMetric
+    loader.load_data(max_samples=args.pool_size or metric_cls.POOL[DS[args.dataset]])
     return loader, loader.get_category_names() if args.dataset == "coco" else loader.get_object_names()
-
-
-def _key(args):
-    return "coco" if args.dataset == "coco" else "vg"
 
 
 def _ground_truth(sample):
@@ -136,7 +135,7 @@ def _evaluate(args, model, loader, samples, all_objects):
         from metrics.chair import vg_vocabulary
 
         vocabulary = vg_vocabulary(all_objects)  # before generation: needs NLTK data
-    prompt = CAPTION_PROMPTS[_key(args)]
+    prompt = CAPTION_PROMPTS[DS[args.dataset]]
     captions, ground_truth, image_paths = [], [], []
     for sample in [s for s in samples if _ground_truth(s)][:args.samples]:
         captions.append(model.generate(image=loader.load_image(sample), prompt=prompt,
