@@ -4,7 +4,7 @@ from PIL import Image
 from .hf_chat import HFChatVLM
 
 
-class MuseGlimmerVLM(HFChatVLM):
+class MuseGlimmer(HFChatVLM):
     """Muse Glimmer: reasoning skipped, weights split across all visible GPUs.
 
     The chat template has no switch to turn reasoning off; after
