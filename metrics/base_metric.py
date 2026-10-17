@@ -63,6 +63,11 @@ def pool_objects(loader) -> List[str]:
     return sorted({name for sample in loader for name in ground_truth(sample)})
 
 
+def annotated(loader, n: int = SAMPLES) -> List[Dict[str, Any]]:
+    """The first ``n`` samples of ``loader`` with ground truth: the images a caption metric scores."""
+    return [s for s in loader if ground_truth(s)][:n]
+
+
 def caption_images(loader, model, n: int = SAMPLES,
                    gen: Mapping[str, Any] = CAPTION_GEN) -> Tuple[List[Dict[str, Any]], List[str]]:
     """Caption the first ``n`` annotated images of ``loader`` with the dataset's prompt.
@@ -71,7 +76,7 @@ def caption_images(loader, model, n: int = SAMPLES,
         ``(samples, captions)``, one caption per sample.
     """
     prompt = CAPTION_PROMPTS[dataset_key(loader)]
-    samples = [s for s in loader if ground_truth(s)][:n]
+    samples = annotated(loader, n)
     captions = [model.generate(image=loader.load_image(s), prompt=prompt, **gen) for s in samples]
     return samples, captions
 

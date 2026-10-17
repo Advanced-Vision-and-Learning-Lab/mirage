@@ -17,7 +17,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from metrics.base_metric import (CAPTION_GEN, SAMPLES, BaseMetric, MissingVerdicts, caption_images, ground_truth,
+from metrics.base_metric import (CAPTION_GEN, SAMPLES, BaseMetric, MissingVerdicts, annotated, caption_images,
                                  verdict_key)
 from metrics.pope import QUESTIONS_PER_IMAGE
 from predict.factory import REGISTRY as MODEL_REGISTRY
@@ -213,9 +213,8 @@ def _throne_judged(metric, details, loader, model, judge, ds):
         from metrics.chair import ChairMetric
         from metrics.throne import completed_labels
 
-        samples = [s for s in loader if ground_truth(s)][:len(details)]  # the images caption_images scored
         images = ChairMetric.for_dataset(ds, loader).images(
-            ds, samples, [d["caption"] for d in details], verdict_key(model))
+            ds, annotated(loader, len(details)), [d["caption"] for d in details], verdict_key(model))
         committee = judge.committee(ds, images)
         verified = ChairMetric.verified_present(images, judge("mentions", images))
         present = completed_labels([committee[img["item"]]["verified"] | v for img, v in zip(images, verified)])
