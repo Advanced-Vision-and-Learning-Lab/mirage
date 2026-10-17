@@ -17,7 +17,7 @@ from PIL import Image
 
 from metrics.base_metric import CAPTION_GEN, SAMPLES, BaseMetric, caption_images, object_names, pool_objects
 from metrics.pope import QUESTIONS_PER_IMAGE
-from predict.factory import _REGISTRY as MODEL_REGISTRY
+from predict.factory import REGISTRY as MODEL_REGISTRY
 
 logger = logging.getLogger("mirage.run")
 DS = {"coco": "coco", "visual_genome": "vg"}  # --dataset -> the key metrics use (POOL, CAPTION_PROMPTS)
