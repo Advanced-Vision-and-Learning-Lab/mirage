@@ -24,7 +24,7 @@ def coco(metric):
 def main():
     if sys.argv[1:]:
         raise SystemExit("demo.py takes no flags; use run.py (python run.py --help)")
-    model = build_predictor("paligemma")  # any key in predict.factory._REGISTRY
+    model = build_predictor("paligemma")  # any key in predict.factory.REGISTRY
     model.load_model()                    # lazy: weights load only on a cache miss
 
     pope = POPEMetric()                   # 6 yes/no questions per image, seed 42

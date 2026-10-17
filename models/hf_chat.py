@@ -9,7 +9,7 @@ import logging
 import re
 import time
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import torch
 from PIL import Image
@@ -36,6 +36,8 @@ class HFChatVLM(BaseModel):
         device: Device for inference (default: CUDA when available).
         torch_dtype: Weight dtype (default: bfloat16).
     """
+
+    cache_name = "HFChatVLM"
 
     def __init__(
         self,
@@ -124,18 +126,11 @@ class HFChatVLM(BaseModel):
         text = self.processor.decode(new_tokens, skip_special_tokens=True)
         return _THINKING_RE.sub("", text).strip()
 
-    def batch_generate(
-        self,
-        prompts: List[str],
-        images: Optional[List[Union[Image.Image, str, Path, None]]] = None,
-        **kwargs,
-    ) -> List[Optional[str]]:
-        images = images or [None] * len(prompts)
-        return [self.generate(prompt, image=image, **kwargs) for prompt, image in zip(prompts, images)]
-
 
 class HFChatThinkingVLM(HFChatVLM):
     """``HFChatVLM`` with thinking on; a separate class so cache keys never mix modes."""
+
+    cache_name = "HFChatThinkingVLM"
 
     def __init__(self, model_name: str, **kwargs):
         super().__init__(model_name, enable_thinking=True, **kwargs)
