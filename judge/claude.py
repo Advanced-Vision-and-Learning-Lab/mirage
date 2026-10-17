@@ -42,6 +42,14 @@ def problems(chunk, out_path, verdicts):
     return errs
 
 
+def claude_binary(binary=None):
+    """``binary``, else ``$MIRAGE_CLAUDE_BIN``, else ``claude`` on PATH."""
+    binary = binary or os.environ.get("MIRAGE_CLAUDE_BIN") or shutil.which("claude")
+    if not binary:
+        raise FileNotFoundError("no claude binary: set MIRAGE_CLAUDE_BIN or put claude on PATH")
+    return binary
+
+
 def skill_sha(skill):
     return hashlib.sha256((HERE / f".claude/skills/{skill}/SKILL.md").read_bytes()).hexdigest()[:12]
 
@@ -113,9 +121,7 @@ class ClaudeCLI:
 
     def __init__(self, model="claude-opus-5-5", binary=None, workdir=None, chunk=10, timeout=1800, retries=1):
         self.model, self.workdir, self.chunk, self.timeout, self.retries = model, workdir, chunk, timeout, retries
-        self.binary = binary or os.environ.get("MIRAGE_CLAUDE_BIN") or shutil.which("claude")
-        if not self.binary:
-            raise FileNotFoundError("no claude binary: set MIRAGE_CLAUDE_BIN or put claude on PATH")
+        self.binary = claude_binary(binary)
 
     def grade(self, kind, requests):
         """Verdict rows ``(item, key, verdict)`` for skill inputs ``requests`` (one per image).
@@ -152,8 +158,7 @@ def main():
         return
     if not a.out or not a.inputs:
         ap.error("--out and input chunks are required")
-    binary = os.environ.get("MIRAGE_CLAUDE_BIN") or "claude"
-    total_cost = run_chunks(a.inputs, a.out, a.skill, a.model, a.timeout, a.retries, binary)
+    total_cost = run_chunks(a.inputs, a.out, a.skill, a.model, a.timeout, a.retries, claude_binary())
     print(f"total reported cost this run: {total_cost:.2f} USD", flush=True)
 
 
