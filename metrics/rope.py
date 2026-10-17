@@ -87,6 +87,9 @@ class ROPEMetric(BaseMetric):
     Adapted from: https://github.com/sled-group/moh
     """
 
+    POOL = {"coco": 3000, "vg": 2000}
+    GEN = {"max_new_tokens": 30, "do_sample": False}
+
     def __init__(
         self,
         num_objects: int = 5,

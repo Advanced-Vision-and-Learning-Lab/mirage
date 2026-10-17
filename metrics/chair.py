@@ -188,6 +188,28 @@ _ORANGE_FRUIT_FOLLOWERS = {
 }
 
 
+# Visual Genome names that are not objects (NLTK stopwords are added); without them
+# CHAIR counts every caption containing 'the' or 'red' as a mention.
+VG_NON_OBJECTS = {
+    "red", "white", "black", "blue", "green", "yellow", "brown", "gray",
+    "grey", "pink", "purple", "orange", "gold", "silver", "tan", "beige",
+    "large", "small", "wooden", "metal", "plastic", "old", "new", "tall",
+    "short", "long", "wide", "narrow", "thick", "thin", "open", "closed",
+    "cozy", "sunny", "shiny", "rough", "smooth", "clean", "dirty",
+    "background", "foreground", "left", "right", "top", "bottom",
+    "middle", "center", "side", "corner", "edge",
+    "parked", "standing", "sitting", "walking", "lying", "running",
+}
+
+
+def vg_vocabulary(all_objects):
+    """CHAIR vocabulary for Visual Genome: object names minus stopwords and VG_NON_OBJECTS."""
+    from nltk.corpus import stopwords
+
+    bad = set(stopwords.words("english")) | VG_NON_OBJECTS
+    return [name for name in all_objects if name.lower().strip() not in bad and len(name.strip()) >= 2]
+
+
 class ChairMetric(BaseMetric):
     """
     Caption Hallucination Assessment with Image Relevance (CHAIR) metric.
