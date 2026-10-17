@@ -14,18 +14,14 @@ in the reference runs (see ``MODELS`` and the ``*_path`` helpers).
 
 import argparse
 import csv
-import gzip
 import json
-import re
 from collections import Counter
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
-from metrics.base_metric import MIN_WORDS, fbeta
+from judge.store import load_drop_list, load_verdicts
 from metrics.throne import MIN_SUPPORT, classwise
 
-REPO = Path(__file__).resolve().parent.parent
-JUDGMENTS = REPO / "judgments"
 N_IMAGES = 500
 DATASETS = {"coco": "COCO", "vg": "Visual Genome"}
 # Key -> display name. Order fixes rank ties.
@@ -38,125 +34,6 @@ MODELS = {
 OLD = {"paligemma": "paligemma", "qwen2vl-2b": "Qwen2-VL-2B-Instruct", "qwen2vl-7b": "Qwen2-VL-7B-Instruct"}
 # Visual Genome THRONE rows re-judged at the 1,024-token window; the rest had no trimmed captions.
 VG_W1024 = {"paligemma", "gemma4-12b", "muse-glimmer-30b"}
-_POPE_RE = re.compile(r"Is there an?\s+(.+?)\s+in the image", re.I)
-
-
-class MissingVerdicts(RuntimeError):
-    """Items with no stored verdict; grade them with tools/judge and add the rows."""
-
-    def __init__(self, kind: str, items: List[Tuple[str, str]]):
-        super().__init__(f"{len(items)} {kind} items have no verdict, e.g. {items[:5]}")
-        self.items = items
-
-
-# ----------------------------------------------------------------------
-# Static judge files
-# ----------------------------------------------------------------------
-
-def load_verdicts(name: str, directory: Path = JUDGMENTS) -> Dict[Tuple[str, str], str]:
-    """``judgments/<name>.tsv.gz`` rows ``item, key, verdict`` as ``{(item, key): verdict}``."""
-    with gzip.open(directory / f"{name}.tsv.gz", "rt", encoding="utf-8") as f:
-        return {(item, key): verdict for item, key, verdict in csv.reader(f, delimiter="\t")}
-
-
-def load_drop_list(directory: Path = JUDGMENTS) -> Dict[str, Dict[Tuple[str, str], str]]:
-    """POPE no-questions to drop, ``{dataset: {(image_id, object): reason}}``."""
-    drop: Dict[str, Dict[Tuple[str, str], str]] = {}
-    with open(directory / "pope_drop_list.tsv", encoding="utf-8") as f:
-        for r in csv.DictReader(f, delimiter="\t"):
-            drop.setdefault(r["dataset"], {})[(r["image_id"], r["object"])] = r["reason"]
-    return drop
-
-
-# ----------------------------------------------------------------------
-# Scorers (pure functions of records and verdicts)
-# ----------------------------------------------------------------------
-
-def _binary(rows: List[Tuple[bool, bool]]) -> Dict[str, float]:
-    tp = sum(1 for l, y in rows if l and y); tn = sum(1 for l, y in rows if not l and not y)
-    fp = sum(1 for l, y in rows if not l and y); fn = sum(1 for l, y in rows if l and not y)
-    prec = tp / (tp + fp) if tp + fp else 0.0
-    rec = tp / (tp + fn) if tp + fn else 0.0
-    bal = ((tp / (tp + fn) if tp + fn else 0.0) + (tn / (tn + fp) if tn + fp else 0.0)) / 2
-    return {"accuracy": (tp + tn) / len(rows), "balanced_accuracy": bal,
-            "f1": 2 * prec * rec / (prec + rec) if prec + rec else 0.0,
-            "yes_ratio": (tp + fp) / len(rows), "questions": len(rows)}
-
-
-def mod_pope(records: Iterable[Tuple[str, str, bool, bool]], drop: Dict[Tuple[str, str], str]) -> Dict[str, float]:
-    """POPE on ``(image_id, object, label, said_yes)``; Mod-POPE drops listed no-questions."""
-    records = list(records)
-    raw = _binary([(label, yes) for _, _, label, yes in records])
-    mod = _binary([(label, yes) for iid, obj, label, yes in records if label or (iid, obj) not in drop])
-    return {"raw": raw["accuracy"], "raw_balanced": raw["balanced_accuracy"], "head": mod["balanced_accuracy"],
-            "f1": mod["f1"], "yes_ratio": mod["yes_ratio"], "n_raw": raw["questions"], "n_head": mod["questions"]}
-
-
-def mod_rope(records: Iterable[Tuple[str, int, str, bool]], verdicts: Dict[Tuple[str, str], str]) -> Dict[str, float]:
-    """ROPE on ``(item, box, answer_key, strict_correct)``: strict accuracy and the judged
-    share of fair names (correct / graded; unsure excluded, related reported apart)."""
-    records = list(records)
-    missing = [(item, f"{box}|{ans}") for item, box, ans, _ in records if (item, f"{box}|{ans}") not in verdicts]
-    if missing:
-        raise MissingVerdicts("ROPE", missing)
-    k = Counter(verdicts[(item, f"{box}|{ans}")] for item, box, ans, _ in records)
-    boxes, graded = len(records), k["correct"] + k["related"] + k["wrong"]
-    correct = k["correct"] / graded
-    return {"raw": sum(strict for *_, strict in records) / boxes, "head": correct,
-            "related": (k["correct"] + k["related"]) / graded - correct,
-            "correct_incl_unsure_as_wrong": correct * (boxes - k["unsure"]) / boxes,
-            "n_raw": boxes, "n_head": boxes - k["unsure"]}
-
-
-def _resolve(item: str, model: str, m: Dict, verdicts: Dict, ref: Iterable[str]) -> str:
-    """Mention verdict: annotated, a reference-caption object, not a noun, or a plural/phrase/
-    synonym/hypernym of an annotation resolve without the judge."""
-    if not m["hall"] or m["word"] in ref:
-        return "present"
-    if not m["noun"]:
-        return "not_object"
-    if m["rel"]:
-        return "present"
-    return verdicts.get((item, f"{model}|{m['word']}"), "missing")
-
-
-def mod_chair(images: List[Dict], verdicts: Dict, refs: Optional[Dict[str, set]] = None) -> Dict[str, Dict]:
-    """CHAIR-I on raw mentions, and Mod-CHAIR on judged ones: each object counted once per
-    caption, captions under ``MIN_WORDS`` words mention nothing, coverage = present objects
-    named / all present objects named by any model. ``images``: ``{"item", "models":
-    {model: {"caption", "mentions"}}}``; ``refs``: item -> reference-caption objects (COCO)."""
-    refs = refs or {}
-    rows: Dict[str, List[Dict]] = {}
-    for img in images:
-        item, ref = img["item"], refs.get(img["item"], ())
-        short = {m: len(c["caption"].split()) < MIN_WORDS for m, c in img["models"].items()}
-        res = {m: [] if short[m] else [(x["word"], _resolve(item, m, x, verdicts, ref)) for x in c["mentions"]]
-               for m, c in img["models"].items()}
-        missing = [(item, f"{m}|{w}") for m, r in res.items() for w, v in r if v == "missing"]
-        if missing:
-            raise MissingVerdicts("mention", missing)
-        present = {m: {w for w, v in r if v == "present"} for m, r in res.items()}
-        pool = set().union(*present.values())
-        for m, c in img["models"].items():
-            uniq = {}
-            for w, v in res[m]:
-                uniq.setdefault(w, v)
-            obj = [v for v in uniq.values() if v in ("present", "absent")]
-            rows.setdefault(m, []).append({
-                "raw_m": len(c["mentions"]), "raw_h": sum(x["hall"] for x in c["mentions"]),
-                "m": len(obj), "h": obj.count("absent"), "found": len(present[m]), "pool": len(pool)})
-
-    def ratio(rs, num, den):
-        d = sum(r[den] for r in rs)
-        return sum(r[num] for r in rs) / d if d else 0.0
-
-    out = {}
-    for m, rs in rows.items():
-        chair_i, coverage = ratio(rs, "h", "m"), ratio(rs, "found", "pool")
-        out[m] = {"raw": ratio(rs, "raw_h", "raw_m"), "head": fbeta(1 - chair_i, coverage), "mod_chair_i": chair_i,
-                  "coverage": coverage, "mod_chair_s": sum(r["h"] > 0 for r in rs) / len(rs),
-                  "n_raw": sum(r["raw_m"] for r in rs), "n_head": sum(r["m"] for r in rs)}
-    return out
 
 
 # ----------------------------------------------------------------------
@@ -199,7 +76,7 @@ def _rows(path: Path):
 
 
 def pope_records(root: Path, ds: str) -> Dict[str, List[Tuple[str, str, bool, bool]]]:
-    from metrics.pope import POPEMetric
+    from metrics.pope import QUESTION_RE, POPEMetric
     from predict.identity import hash_image
 
     loader = _loader(root, ds, 2000)
@@ -210,7 +87,7 @@ def pope_records(root: Path, ds: str) -> Dict[str, List[Tuple[str, str, bool, bo
     for model in MODELS:
         recs = []
         for prompt, image_hash, resp in _rows(cache_path(root, model, ds, "pope")):
-            m = _POPE_RE.search(prompt)
+            m = QUESTION_RE.search(prompt)
             if image_hash in images and m:
                 iid, cats = images[image_hash]
                 recs.append((iid, m.group(1), m.group(1) in cats, pope.process_response(resp)))
@@ -272,31 +149,19 @@ def mention_records(root: Path, ds: str) -> Tuple[List[Dict], Dict[str, set]]:
     return images, refs
 
 
-def _verified_present(images: List[Dict], verdicts: Dict) -> List[set]:
-    """Per image: words any model mentioned that are annotated, related to an annotation, or judged present."""
-    out = []
-    for img in images:
-        words = set()
-        for m, c in img["models"].items():
-            for x in c["mentions"]:
-                if not x["hall"] or (x["noun"] and x["rel"]) or (
-                        x["noun"] and verdicts.get((img["item"], f"{m}|{x['word']}")) == "present"):
-                    words.add(x["word"])
-        out.append(words)
-    return out
-
-
 def build_table(root: Path) -> Dict[str, Dict]:
-    from metrics.chair import variant_of_gt
+    from metrics.chair import ChairMetric, variant_of_gt
+    from metrics.pope import POPEMetric
+    from metrics.rope import ROPEMetric
 
     drop, mentions, rope_v = load_drop_list(), load_verdicts("mentions"), load_verdicts("rope")
     table = {}
     for ds in DATASETS:
         pope, rope = pope_records(root, ds), rope_records(root, ds)
         images, refs = mention_records(root, ds)
-        chair = mod_chair(images, mentions, refs)
+        chair = ChairMetric.score(images, mentions, refs)
         support = Counter(g.lower() for img in images for g in set(img["gt"]))
-        vp = _verified_present(images, mentions) if ds == "vg" else None
+        vp = ChairMetric.verified_present(images, mentions) if ds == "vg" else None
         rows = {}
         for model in MODELS:
             details = json.load(open(throne_path(root, model, ds)))["per_image_details"][:N_IMAGES]
@@ -307,7 +172,8 @@ def build_table(root: Path) -> Dict[str, Dict]:
             present = (lambda i, c: c in vp[i] or variant_of_gt(c, list(vp[i]))[0] in ("exact", "plural", "phrase")) \
                 if vp else None
             head = classwise(details, support, min_support, is_present=present)
-            rows[model] = {"POPE": mod_pope(pope[model], drop.get(ds, {})), "ROPE": mod_rope(rope[model], rope_v),
+            rows[model] = {"POPE": POPEMetric.score(pope[model], drop.get(ds, {})),
+                           "ROPE": ROPEMetric.score(rope[model], rope_v),
                            "CHAIR": chair[model], "THRONE": {"raw": paper["head"], **head}}
         for metric in ("POPE", "ROPE", "CHAIR", "THRONE"):
             for kind in ("raw", "raw_balanced", "head") if metric == "POPE" else ("raw", "head"):

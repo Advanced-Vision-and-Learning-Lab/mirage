@@ -29,6 +29,14 @@ def fbeta(p: float, r: float, beta2: float = BETA2) -> float:
     return (1 + beta2) * p * r / (beta2 * p + r) if p + r else 0.0
 
 
+class MissingVerdicts(RuntimeError):
+    """Items with no stored verdict; grade them with the judge (judge/claude.py) and add the rows."""
+
+    def __init__(self, kind: str, items: List[Tuple[str, str]]):
+        super().__init__(f"{len(items)} {kind} items have no verdict, e.g. {items[:5]}")
+        self.items = items
+
+
 def ground_truth(sample: Dict[str, Any]) -> List[str]:
     """Annotated object names of a loader sample: COCO categories, else Visual Genome object names."""
     if "categories" in sample:

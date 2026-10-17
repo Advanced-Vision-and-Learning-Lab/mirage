@@ -18,13 +18,14 @@ Reference:
 
 import re
 import logging
+from collections import Counter
 from copy import deepcopy
 from types import MappingProxyType
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .base_metric import SAMPLES, BaseMetric
+from .base_metric import SAMPLES, BaseMetric, MissingVerdicts
 
 logger = logging.getLogger(__name__)
 
@@ -332,6 +333,22 @@ class ROPEMetric(BaseMetric):
     def strict(pred: str, gt: str) -> bool:
         """Plain ROPE: the parsed answer equals the label, ignoring case and surrounding whitespace."""
         return pred.strip().lower() == gt.strip().lower()
+
+    @staticmethod
+    def score(records: Iterable[Tuple[str, int, str, bool]], verdicts: Dict[Tuple[str, str], str]) -> Dict[str, float]:
+        """ROPE on ``(item, box, answer_key, strict_correct)``: strict accuracy and the judged
+        share of fair names (correct / graded; unsure excluded, related reported apart)."""
+        records = list(records)
+        missing = [(item, f"{box}|{ans}") for item, box, ans, _ in records if (item, f"{box}|{ans}") not in verdicts]
+        if missing:
+            raise MissingVerdicts("ROPE", missing)
+        k = Counter(verdicts[(item, f"{box}|{ans}")] for item, box, ans, _ in records)
+        boxes, graded = len(records), k["correct"] + k["related"] + k["wrong"]
+        correct = k["correct"] / graded
+        return {"raw": sum(strict for *_, strict in records) / boxes, "head": correct,
+                "related": (k["correct"] + k["related"]) / graded - correct,
+                "correct_incl_unsure_as_wrong": correct * (boxes - k["unsure"]) / boxes,
+                "n_raw": boxes, "n_head": boxes - k["unsure"]}
 
     def evaluate_predictions(
         self,

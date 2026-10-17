@@ -1,13 +1,26 @@
 import random
 import re
 from types import MappingProxyType
-from typing import Dict, List, Any, Tuple, Optional
+from typing import Dict, Iterable, List, Any, Tuple, Optional
 import numpy as np
 from collections import Counter
 
 from .base_metric import SAMPLES, BaseMetric, ground_truth, object_names
 
 QUESTIONS_PER_IMAGE = 6  # POPE questions per image (half yes): POPEMetric and run.py --pope-questions default
+QUESTION_RE = re.compile(r"Is there an?\s+(.+?)\s+in the image", re.I)
+
+
+def _binary(rows: List[Tuple[bool, bool]]) -> Dict[str, float]:
+    tp = sum(1 for l, y in rows if l and y); tn = sum(1 for l, y in rows if not l and not y)
+    fp = sum(1 for l, y in rows if not l and y); fn = sum(1 for l, y in rows if l and not y)
+    prec = tp / (tp + fp) if tp + fp else 0.0
+    rec = tp / (tp + fn) if tp + fn else 0.0
+    bal = ((tp / (tp + fn) if tp + fn else 0.0) + (tn / (tn + fp) if tn + fp else 0.0)) / 2
+    return {"accuracy": (tp + tn) / len(rows), "balanced_accuracy": bal,
+            "f1": 2 * prec * rec / (prec + rec) if prec + rec else 0.0,
+            "yes_ratio": (tp + fp) / len(rows), "questions": len(rows)}
+
 
 class POPEMetric(BaseMetric):
     """
@@ -281,6 +294,15 @@ class POPEMetric(BaseMetric):
             "num_questions": len(self.questions),
             "mode": self.mode
         }
+
+    @staticmethod
+    def score(records: Iterable[Tuple[str, str, bool, bool]], drop: Dict[Tuple[str, str], str]) -> Dict[str, float]:
+        """POPE on ``(image_id, object, label, said_yes)``; Mod-POPE drops listed no-questions."""
+        records = list(records)
+        raw = _binary([(label, yes) for _, _, label, yes in records])
+        mod = _binary([(label, yes) for iid, obj, label, yes in records if label or (iid, obj) not in drop])
+        return {"raw": raw["accuracy"], "raw_balanced": raw["balanced_accuracy"], "head": mod["balanced_accuracy"],
+                "f1": mod["f1"], "yes_ratio": mod["yes_ratio"], "n_raw": raw["questions"], "n_head": mod["questions"]}
 
     def get_question_stats(self) -> Dict[str, int]:
         """

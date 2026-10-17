@@ -1,13 +1,13 @@
 import logging
 import functools
 import re
-from typing import Dict, List, Any, Set, Tuple, Optional
+from typing import Dict, Iterable, List, Any, Set, Tuple, Optional
 from collections import Counter
 
 import nltk
 import inflect
 
-from .base_metric import BaseMetric
+from .base_metric import MIN_WORDS, BaseMetric, MissingVerdicts, fbeta
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +209,18 @@ def vg_vocabulary(all_objects):
 
     bad = set(stopwords.words("english")) | VG_NON_OBJECTS
     return [name for name in all_objects if name.lower().strip() not in bad and len(name.strip()) >= 2]
+
+
+def _resolve(item: str, model: str, m: Dict, verdicts: Dict, ref: Iterable[str]) -> str:
+    """Mention verdict: annotated, a reference-caption object, not a noun, or a plural/phrase/
+    synonym/hypernym of an annotation resolve without the judge."""
+    if not m["hall"] or m["word"] in ref:
+        return "present"
+    if not m["noun"]:
+        return "not_object"
+    if m["rel"]:
+        return "present"
+    return verdicts.get((item, f"{model}|{m['word']}"), "missing")
 
 
 class ChairMetric(BaseMetric):
@@ -618,6 +630,59 @@ class ChairMetric(BaseMetric):
         self.caption_details = []
         self.object_hallucination_counts = Counter()
         self.normalize_object.cache_clear()
+
+    @staticmethod
+    def score(images: List[Dict], verdicts: Dict, refs: Optional[Dict[str, set]] = None) -> Dict[str, Dict]:
+        """CHAIR-I on raw mentions, and Mod-CHAIR on judged ones: each object counted once per
+        caption, captions under ``MIN_WORDS`` words mention nothing, coverage = present objects
+        named / all present objects named by any model. ``images``: ``{"item", "models":
+        {model: {"caption", "mentions"}}}``; ``refs``: item -> reference-caption objects (COCO)."""
+        refs = refs or {}
+        rows: Dict[str, List[Dict]] = {}
+        for img in images:
+            item, ref = img["item"], refs.get(img["item"], ())
+            short = {m: len(c["caption"].split()) < MIN_WORDS for m, c in img["models"].items()}
+            res = {m: [] if short[m] else [(x["word"], _resolve(item, m, x, verdicts, ref)) for x in c["mentions"]]
+                   for m, c in img["models"].items()}
+            missing = [(item, f"{m}|{w}") for m, r in res.items() for w, v in r if v == "missing"]
+            if missing:
+                raise MissingVerdicts("mention", missing)
+            present = {m: {w for w, v in r if v == "present"} for m, r in res.items()}
+            pool = set().union(*present.values())
+            for m, c in img["models"].items():
+                uniq = {}
+                for w, v in res[m]:
+                    uniq.setdefault(w, v)
+                obj = [v for v in uniq.values() if v in ("present", "absent")]
+                rows.setdefault(m, []).append({
+                    "raw_m": len(c["mentions"]), "raw_h": sum(x["hall"] for x in c["mentions"]),
+                    "m": len(obj), "h": obj.count("absent"), "found": len(present[m]), "pool": len(pool)})
+
+        def ratio(rs, num, den):
+            d = sum(r[den] for r in rs)
+            return sum(r[num] for r in rs) / d if d else 0.0
+
+        out = {}
+        for m, rs in rows.items():
+            chair_i, coverage = ratio(rs, "h", "m"), ratio(rs, "found", "pool")
+            out[m] = {"raw": ratio(rs, "raw_h", "raw_m"), "head": fbeta(1 - chair_i, coverage), "mod_chair_i": chair_i,
+                      "coverage": coverage, "mod_chair_s": sum(r["h"] > 0 for r in rs) / len(rs),
+                      "n_raw": sum(r["raw_m"] for r in rs), "n_head": sum(r["m"] for r in rs)}
+        return out
+
+    @staticmethod
+    def verified_present(images: List[Dict], verdicts: Dict) -> List[set]:
+        """Per image: words any model mentioned that are annotated, related to an annotation, or judged present."""
+        out = []
+        for img in images:
+            words = set()
+            for m, c in img["models"].items():
+                for x in c["mentions"]:
+                    if not x["hall"] or (x["noun"] and x["rel"]) or (
+                            x["noun"] and verdicts.get((img["item"], f"{m}|{x['word']}")) == "present"):
+                        words.add(x["word"])
+            out.append(words)
+        return out
 
 
 # ----------------------------------------------------------------------
