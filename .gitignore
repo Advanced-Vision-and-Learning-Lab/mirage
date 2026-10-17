@@ -31,3 +31,6 @@ slurm/runs/
 .env
 .DS_Store
 .vscode/
+
+# Live judge verdicts (judge.Judge.load(live=True))
+judgments/live/

@@ -2,7 +2,7 @@
 
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from metrics.base_metric import MIN_WORDS, MissingVerdicts
 
@@ -33,26 +33,13 @@ def mention_requests(images: List[Dict], verdicts: Dict, refs: Optional[Dict[str
     return out
 
 
-def rope_requests(records: List[Tuple[str, int, str, bool]], verdicts: Dict,
-                  image_paths: Optional[Dict[str, str]] = None) -> List[Dict]:
-    """judge-rope inputs: per image (its box-annotated jpg), each box's answer keys with no verdict."""
-    todo: Dict[str, Dict[int, List[str]]] = {}
-    for item, box, ans, _ in records:
-        if (item, f"{box}|{ans}") not in verdicts:
-            answers = todo.setdefault(item, {}).setdefault(box, [])
-            if ans not in answers:
-                answers.append(ans)
-    return [{"image_id": item, "image": str(image_paths[item]),
-             "boxes": [{"box": b, "answers": [{"answer": a, "example": a} for a in answers]}
-                       for b, answers in sorted(boxes.items())]}
-            for item, boxes in todo.items()]
-
-
 class Judge:
     """Verdicts for scoring: the frozen :class:`VerdictStore` answers first; with a live judge
-    (:class:`judge.claude.ClaudeCLI`) the misses are graded and kept in the live shard, otherwise
-    the metric's ``score`` raises :class:`MissingVerdicts` for them. POPE drop decisions and the
-    committee exist only for the frozen images, so they always raise outside them.
+    (:class:`judge.claude.ClaudeCLI`) missing mention verdicts are graded and kept in the live
+    shard, otherwise the metric's ``score`` raises :class:`MissingVerdicts` for them. ROPE has no
+    live path yet (judge-rope needs box-annotated images and raw replies), so its misses always
+    raise; POPE drop decisions and the committee exist only for the frozen images, so they raise
+    outside them.
     """
 
     def __init__(self, store: VerdictStore, live=None):
@@ -62,12 +49,12 @@ class Judge:
     def load(cls, path: Optional[Path] = None, live: bool = False, live_dir: Optional[Path] = None) -> "Judge":
         """The frozen store (see :meth:`VerdictStore.open`); ``live=True`` adds the Claude judge,
         writing to ``live_dir`` (default ``<store>/live``)."""
-        store = VerdictStore.open(path)
+        store = VerdictStore.open(path, live=live, live_dir=live_dir if live else None)
         if not live:
             return cls(store)
         from .claude import ClaudeCLI
 
-        return cls(VerdictStore(store.directory, live_dir or store.directory / "live"), ClaudeCLI())
+        return cls(store, ClaudeCLI())
 
     def __call__(self, kind: str, records, ds: Optional[str] = None, refs: Optional[Dict[str, set]] = None,
                  image_paths: Optional[Dict[str, str]] = None) -> Dict:
@@ -76,7 +63,7 @@ class Judge:
         Args:
             kind: "pope" (POPEMetric records; needs ``ds``), "rope" (ROPEMetric records) or
                 "mentions" (ChairMetric images, with ``refs`` on COCO).
-            image_paths: item -> image file shown to the live judge (box-annotated for ROPE).
+            image_paths: item -> image file shown to the live judge (mentions only).
 
         Returns:
             The POPE drop list of ``ds``, or ``{(item, key): verdict}``.
@@ -88,9 +75,8 @@ class Judge:
                 raise MissingVerdicts("POPE", missing)
             return self.store.drop_list(ds)
         verdicts = self.store.verdicts(kind)
-        if self.live is not None:
-            requests = (mention_requests(records, verdicts, refs, image_paths) if kind == "mentions"
-                        else rope_requests(records, verdicts, image_paths))
+        if self.live is not None and kind == "mentions":
+            requests = mention_requests(records, verdicts, refs, image_paths)
             if requests:
                 from .claude import skill_sha
 
