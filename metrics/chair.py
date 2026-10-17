@@ -1,5 +1,6 @@
-import logging
 import functools
+import json
+import logging
 import re
 from typing import Dict, Iterable, List, Any, Set, Tuple, Optional
 from collections import Counter
@@ -296,6 +297,24 @@ class ChairMetric(BaseMetric):
         # Detailed tracking
         self.caption_details: List[Dict[str, Any]] = []
         self.object_hallucination_counts: Counter = Counter()
+
+    @classmethod
+    def for_dataset(cls, ds: str, loader) -> "ChairMetric":
+        """CHAIR as scored for ``ds``: COCO synonyms, or exact names from the Visual Genome vocabulary."""
+        if ds == "vg":
+            vocab = vg_vocabulary(loader.get_object_names())
+            chair = cls(object_synsets={n: [n] for n in vocab}, use_coco_synonyms=False)
+        else:
+            chair = cls(use_coco_synonyms=True)
+        return chair
+
+    def reference_objects(self, captions_json, images: List[Dict]) -> Dict[str, set]:
+        """COCO objects named in each item's reference captions; the CHAIR paper counts them as present."""
+        by_image: Dict[str, List[str]] = {}
+        for a in json.load(open(captions_json))["annotations"]:
+            by_image.setdefault(f"coco_{a['image_id']}", []).append(a["caption"])
+        return {img["item"]: {w for cap in by_image.get(img["item"], []) for w in self.caption_to_words(cap)[1]}
+                for img in images}
 
     @functools.lru_cache(maxsize=1024)
     def normalize_object(self, obj: str) -> str:
@@ -632,12 +651,16 @@ class ChairMetric(BaseMetric):
         self.normalize_object.cache_clear()
 
     @staticmethod
-    def score(images: List[Dict], verdicts: Dict, refs: Optional[Dict[str, set]] = None) -> Dict[str, Dict]:
+    def score(images: List[Dict], verdicts: Dict, refs: Optional[Dict[str, set]] = None,
+              committee: Optional[Dict[str, Dict[str, set]]] = None) -> Dict[str, Dict]:
         """CHAIR-I on raw mentions, and Mod-CHAIR on judged ones: each object counted once per
         caption, captions under ``MIN_WORDS`` words mention nothing, coverage = present objects
         named / all present objects named by any model. ``images``: ``{"item", "models":
-        {model: {"caption", "mentions"}}}``; ``refs``: item -> reference-caption objects (COCO)."""
+        {model: {"caption", "mentions"}}}``; ``refs``: item -> reference-caption objects (COCO);
+        ``committee``: item -> {"present": words the frozen pool of models found present}, added
+        to the coverage pool of a model scored on its own."""
         refs = refs or {}
+        committee = committee or {}
         rows: Dict[str, List[Dict]] = {}
         for img in images:
             item, ref = img["item"], refs.get(img["item"], ())
@@ -648,7 +671,7 @@ class ChairMetric(BaseMetric):
             if missing:
                 raise MissingVerdicts("mention", missing)
             present = {m: {w for w, v in r if v == "present"} for m, r in res.items()}
-            pool = set().union(*present.values())
+            pool = set().union(*present.values(), committee.get(item, {}).get("present", ()))
             for m, c in img["models"].items():
                 uniq = {}
                 for w, v in res[m]:

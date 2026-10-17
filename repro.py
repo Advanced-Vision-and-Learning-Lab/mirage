@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 from judge.store import load_drop_list, load_verdicts
-from metrics.throne import MIN_SUPPORT, classwise
 
 N_IMAGES = 500
 DATASETS = {"coco": "COCO", "vg": "Visual Genome"}
@@ -72,7 +71,10 @@ def _rows(path: Path):
 
     if not path.exists():
         raise FileNotFoundError(path)
-    return SQLiteResponseCache(path, readonly=True).rows()
+    rows = list(SQLiteResponseCache(path, readonly=True).rows())
+    if len({(p, h) for p, h, _ in rows}) != len(rows):  # the joins below assume one row per (prompt, image)
+        raise ValueError(f"{path}: (prompt, image_hash) is not unique")
+    return rows
 
 
 def pope_records(root: Path, ds: str) -> Dict[str, List[Tuple[str, str, bool, bool]]]:
@@ -126,12 +128,7 @@ def mention_records(root: Path, ds: str) -> Tuple[List[Dict], Dict[str, set]]:
     from metrics.chair import ChairMetric
 
     loader = _loader(root, ds, 2000)
-    if ds == "vg":
-        from metrics.chair import vg_vocabulary
-        vocab = vg_vocabulary(loader.get_object_names())
-        chair = ChairMetric(object_synsets={n: [n] for n in vocab}, use_coco_synonyms=False)
-    else:
-        chair = ChairMetric(use_coco_synonyms=True)
+    chair = ChairMetric.for_dataset(ds, loader)
     samples = [s for s in loader if s.get("categories")][:N_IMAGES]
     caps = {m: json.load(open(captions_path(root, m, ds)))["caption_details"][:N_IMAGES] for m in MODELS}
     images = []
@@ -139,20 +136,16 @@ def mention_records(root: Path, ds: str) -> Tuple[List[Dict], Dict[str, set]]:
         gt = list(s["categories"])
         images.append({"item": f"{ds}_{s['image_id']}", "gt": gt, "models": {
             m: {"caption": c[i]["caption"], "mentions": chair.tag_mentions(c[i]["caption"], gt)} for m, c in caps.items()}})
-    refs = {}
-    if ds == "coco":  # CHAIR paper: objects named in the reference captions count as present
-        by_image: Dict[str, List[str]] = {}
-        for a in json.load(open(root / "datasets/coco/annotations/captions_val2017.json"))["annotations"]:
-            by_image.setdefault(f"coco_{a['image_id']}", []).append(a["caption"])
-        refs = {img["item"]: {w for cap in by_image.get(img["item"], []) for w in chair.caption_to_words(cap)[1]}
-                for img in images}
-    return images, refs
+    if ds != "coco":
+        return images, {}
+    return images, chair.reference_objects(root / "datasets/coco/annotations/captions_val2017.json", images)
 
 
 def build_table(root: Path) -> Dict[str, Dict]:
-    from metrics.chair import ChairMetric, variant_of_gt
+    from metrics.chair import ChairMetric
     from metrics.pope import POPEMetric
     from metrics.rope import ROPEMetric
+    from metrics.throne import ThroneMetric, completed_labels
 
     drop, mentions, rope_v = load_drop_list(), load_verdicts("mentions"), load_verdicts("rope")
     table = {}
@@ -162,19 +155,16 @@ def build_table(root: Path) -> Dict[str, Dict]:
         chair = ChairMetric.score(images, mentions, refs)
         support = Counter(g.lower() for img in images for g in set(img["gt"]))
         vp = ChairMetric.verified_present(images, mentions) if ds == "vg" else None
+        throne = ThroneMetric.for_dataset(ds)  # class-wise over categories with MIN_SUPPORT images on VG
+        present = completed_labels(vp) if vp else None
         rows = {}
         for model in MODELS:
             details = json.load(open(throne_path(root, model, ds)))["per_image_details"][:N_IMAGES]
             if any(d["caption"] != img["models"][model]["caption"] for d, img in zip(details, images)):
                 raise ValueError(f"{model} {ds}: THRONE captions are not aligned with the caption run")
-            min_support = MIN_SUPPORT if ds == "vg" else None
-            paper = classwise(details, support, min_support, min_words=None)
-            present = (lambda i, c: c in vp[i] or variant_of_gt(c, list(vp[i]))[0] in ("exact", "plural", "phrase")) \
-                if vp else None
-            head = classwise(details, support, min_support, is_present=present)
             rows[model] = {"POPE": POPEMetric.score(pope[model], drop.get(ds, {})),
                            "ROPE": ROPEMetric.score(rope[model], rope_v),
-                           "CHAIR": chair[model], "THRONE": {"raw": paper["head"], **head}}
+                           "CHAIR": chair[model], "THRONE": throne.score(details, support, present)}
         for metric in ("POPE", "ROPE", "CHAIR", "THRONE"):
             for kind in ("raw", "raw_balanced", "head") if metric == "POPE" else ("raw", "head"):
                 low = metric == "CHAIR" and kind == "raw"  # raw CHAIR-I: lower is better
