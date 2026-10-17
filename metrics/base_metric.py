@@ -2,6 +2,24 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Union, Optional
 import numpy as np
 
+SAMPLES = 500  # images scored per cell: run.py --samples default
+# Caption prompts (COCO, Visual Genome); their bytes are part of the prediction cache key.
+CAPTION_PROMPT = (
+    "Describe this image in detail. List every object you can see, their colors, "
+    "positions, and what is happening in the scene. Be thorough and specific. "
+    "Description: "
+)
+VG_CAPTION_PROMPT = (
+    "You are tasked with generating a detailed caption for the given image. The caption "
+    "should include all the objects present in the image. The objects should be described "
+    "in a natural and coherent way. The caption should be written in a way that is easy to "
+    "understand and should be free of any grammatical errors and at least 10 words long. "
+    "Caption: "
+)
+CAPTION_PROMPTS = {"coco": CAPTION_PROMPT, "vg": VG_CAPTION_PROMPT}
+CAPTION_GEN = {"max_new_tokens": 512, "do_sample": False}
+
+
 class BaseMetric(ABC):
     """
     Abstract base class for all evaluation metrics in Mirage.
@@ -9,6 +27,8 @@ class BaseMetric(ABC):
     All metric implementations must inherit from this class and implement
     the required abstract methods.
     """
+
+    POOL = {"coco": 2000, "vg": 2000}  # candidate images loaded before filtering
 
     def __init__(self, name: str):
         """
