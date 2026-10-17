@@ -15,10 +15,12 @@ from pathlib import Path
 
 from PIL import Image
 
-from metrics.base_metric import CAPTION_GEN, CAPTION_PROMPTS, SAMPLES, BaseMetric
+from metrics.base_metric import CAPTION_GEN, SAMPLES, BaseMetric, caption_images, object_names, pool_objects
+from metrics.pope import QUESTIONS_PER_IMAGE
 from predict.factory import _REGISTRY as MODEL_REGISTRY
 
 logger = logging.getLogger("mirage.run")
+DS = {"coco": "coco", "visual_genome": "vg"}  # --dataset -> the key metrics use (POOL, CAPTION_PROMPTS)
 
 
 def _parse_args():
@@ -33,7 +35,7 @@ def _parse_args():
     p.add_argument("--images", type=Path, default=None)
     p.add_argument("--split", default="val2017", help="COCO split")
     p.add_argument("--max-new-tokens", type=int, default=CAPTION_GEN["max_new_tokens"], help="caption length cap")
-    p.add_argument("--pope-questions", type=int, default=6)
+    p.add_argument("--pope-questions", type=int, default=QUESTIONS_PER_IMAGE)
     p.add_argument("--output", type=Path, default=None, help="JSON results path")
     p.add_argument("--nope-turn2", type=Path, help="NOPE turn-two results JSON")
     p.add_argument("--nope-turn1", type=Path, help="NOPE turn-one results JSON")
@@ -60,107 +62,66 @@ def _load_dataset(args):
         root = Path("datasets/visual_genome")
         loader = VisualGenomeDataLoader(data_path=args.annotations or root / "objects.json",
                                         images_path=args.images or root / "VG_100K", shuffle=False)
-    from metrics.rope import ROPEMetric
-
-    pool = (ROPEMetric if args.metric == "rope" else BaseMetric).POOL[_key(args)]
-    loader.load_data(max_samples=args.pool_size or pool)
-    return loader, loader.get_category_names() if args.dataset == "coco" else loader.get_object_names()
-
-
-def _key(args):
-    return "coco" if args.dataset == "coco" else "vg"
-
-
-def _ground_truth(sample):
-    if "categories" in sample:
-        return list(sample["categories"])
-    return [obj.get("name", "") for obj in sample.get("objects", []) if obj.get("name")]
+    if args.metric == "rope":
+        from metrics.rope import ROPEMetric as metric_cls
+    else:
+        metric_cls = BaseMetric
+    loader.load_data(max_samples=args.pool_size or metric_cls.POOL[DS[args.dataset]])
+    return loader, object_names(loader)
 
 
 def _run_dataset_metric(args):
+    from predict.cache import SQLiteResponseCache
     from predict.factory import build_predictor
 
     loader, all_objects = _load_dataset(args)
-    samples = list(loader)
-    if not samples:
+    if not len(loader):
         raise RuntimeError("No images were loaded. Check the annotation and image paths.")
-    model = build_predictor(args.model)
+    # --cache-only opens the prediction cache read-only: a replay never writes to it, and a miss raises.
+    model = build_predictor(args.model, cache=SQLiteResponseCache(readonly=True) if args.cache_only else None)
     if not args.cache_only:
         model.load_model()
     try:
-        results = _evaluate(args, model, loader, samples, all_objects)
+        results = _evaluate(args, model, loader, all_objects)
         results["cache_stats"] = dict(getattr(model, "stats", {}))
         return results
     finally:
         model.unload_model()
 
 
-def _evaluate(args, model, loader, samples, all_objects):
+def _evaluate(args, model, loader, all_objects):
+    # Each metric runs its own protocol (metric.run); run.py only picks the metric and its settings.
     if args.metric == "pope":
-        from dataloader.base import sample_for_image
         from metrics.pope import POPEMetric
 
         metric = POPEMetric(mode="random", num_questions_per_image=args.pope_questions)
-        n_yes = int(metric.num_questions_per_image * metric.yes_ratio)
-        responses, labels = [], []
-        for sample in [s for s in samples if _ground_truth(s)][:args.samples]:
-            objects, image = _ground_truth(sample), loader.load_image(sample)
-            yes = sample_for_image(sorted(objects), min(n_yes, len(objects)), sample["image_id"], seed=42)
-            questions = metric.generate_questions(objects, yes, all_objects)
-            responses += [model.generate(image=image, prompt=q, **metric.GEN) for q, _ in questions]
-            labels += questions
-        metric.evaluate(responses, labels)
+        metric.run(loader, model, n=args.samples)
         return metric.format_results()
 
     if args.metric == "rope":
         from metrics.rope import ROPEMetric
 
-        boxes = loader.extract_bboxes_for_rope(num_objects=5)
         metric = ROPEMetric(num_objects=5, class_list=all_objects)
-        # The VG vocabulary is too large for one prompt: list the classes in the pool's boxes.
-        classes = all_objects if args.dataset == "coco" else sorted(
-            {b["name"] for image_boxes in boxes.values() for b in image_boxes if b["name"]})
-        predictions, ground_truth = [], []
-        for sample in [s for s in samples if str(s["image_id"]) in boxes][:args.samples]:
-            image_boxes = boxes[str(sample["image_id"])]
-            image = metric.draw_bounding_boxes(loader.load_image(sample), image_boxes)
-            predictions.append([metric.parse_single_response(model.generate(
-                image=image, prompt=metric.generate_prompt_for_box(i, class_list=classes),
-                **metric.GEN)) for i in range(1, 6)])
-            ground_truth.append([b["name"] for b in image_boxes])
-        if not predictions:
-            raise RuntimeError("No images had enough object boxes for ROPE.")
-        metric.evaluate_predictions(predictions, ground_truth)
+        metric.run(loader, model, n=args.samples)
         return metric.format_results()
 
-    if args.metric == "chair" and args.dataset == "visual_genome":
-        from metrics.chair import vg_vocabulary
-
-        vocabulary = vg_vocabulary(all_objects)  # before generation: needs NLTK data
-    prompt = CAPTION_PROMPTS[_key(args)]
-    captions, ground_truth, image_paths = [], [], []
-    for sample in [s for s in samples if _ground_truth(s)][:args.samples]:
-        captions.append(model.generate(image=loader.load_image(sample), prompt=prompt,
-                                       **{**CAPTION_GEN, "max_new_tokens": args.max_new_tokens}))
-        ground_truth.append(_ground_truth(sample))
-        image_paths.append(str(sample.get("image_path") or loader.images_path / sample["image_filename"]))
-
+    gen = {**CAPTION_GEN, "max_new_tokens": args.max_new_tokens}
     if args.metric == "chair":
-        from metrics.chair import ChairMetric
+        from metrics.chair import ChairMetric, vg_vocabulary
 
+        # The VG vocabulary is built before generation (it needs NLTK data).
         metric = ChairMetric(use_coco_synonyms=True) if args.dataset == "coco" else ChairMetric(
-            object_synsets={name: [name] for name in vocabulary}, use_coco_synonyms=False)
-        metric.evaluate(captions, ground_truth)
+            object_synsets={name: [name] for name in vg_vocabulary(all_objects)}, use_coco_synonyms=False)
+        metric.run(loader, model, n=args.samples, gen=gen)
     elif args.metric == "throne":
         from metrics.throne import ThroneMetric
 
         # VG THRONE asks about the pool's object names, not all of objects.json.
-        categories = all_objects if args.dataset == "coco" else sorted(
-            {name for s in samples for name in _ground_truth(s)})
+        categories = all_objects if args.dataset == "coco" else pool_objects(loader)
         metric = ThroneMetric(evaluator_model_name=args.throne_evaluator, object_categories=categories,
                               distractor_ratio=args.throne_distractor_ratio,
                               evaluator_max_tokens=args.throne_evaluator_max_tokens)
-        metric.evaluate(captions, ground_truth)
+        metric.run(loader, model, n=args.samples, gen=gen)
     elif args.metric == "faithscore":
         from metrics.faithscore import FaithScoreMetric
 
@@ -168,6 +129,8 @@ def _evaluate(args, model, loader, samples, all_objects):
             raise ValueError("FaithScore needs --llama-model or MIRAGE_LLAMA_MODEL_PATH.")
         from models.paligemma import PaligemmaModel
 
+        scored, captions = caption_images(loader, model, args.samples, gen)
+        image_paths = [str(s.get("image_path") or loader.images_path / s["image_filename"]) for s in scored]
         verifier = PaligemmaModel(model_name=os.getenv("MIRAGE_PALIGEMMA_MODEL_PATH", "google/paligemma-3b-mix-224"))
         verifier.load_model()
         try:
