@@ -77,7 +77,7 @@ def _load_dataset(args):
     return loader
 
 
-def _run_dataset_metric(args):
+def _run_dataset_metric(args, model=None, judge=None, evaluator=None):
     from judge import Judge
     from predict.factory import build_predictor
 
@@ -85,16 +85,17 @@ def _run_dataset_metric(args):
     if not len(loader):
         raise RuntimeError("No images were loaded. Check the annotation and image paths.")
     # The judged scores' inputs are checked first, so a missing one fails before any generation.
-    judge = None
     if args.metric in JUDGED:
         _check_judged_inputs(args)
-        judge = Judge.load(args.judgments)
+        if judge is None:
+            judge = Judge.load(args.judgments)
     # --cache-only opens the prediction cache read-only: a replay never writes to it, and a miss raises.
-    model = build_predictor(args.model, cache_only=args.cache_only)
+    if model is None:
+        model = build_predictor(args.model, cache_only=args.cache_only)
     if not args.cache_only:
         model.load_model()
     try:
-        results = _evaluate(args, model, loader, judge)
+        results = _evaluate(args, model, loader, judge, evaluator)
         results["cache_stats"] = dict(getattr(model, "stats", {}))
         return results
     finally:
@@ -140,7 +141,7 @@ def _judged(score):
         return {"missing_verdicts": [list(item) for item in e.items]}
 
 
-def _evaluate(args, model, loader, judge):
+def _evaluate(args, model, loader, judge, evaluator=None):
     # Each metric runs its own protocol (metric.run) and scores the judged variant from its records;
     # run.py only picks the metric and its settings.
     ds = DS[args.dataset]
@@ -172,7 +173,7 @@ def _evaluate(args, model, loader, judge):
         metric = ThroneMetric.for_dataset(ds, loader, evaluator_model_name=args.throne_evaluator,
                                           distractor_ratio=args.throne_distractor_ratio,
                                           evaluator_max_tokens=args.throne_evaluator_max_tokens,
-                                          cache_only=args.cache_only)
+                                          cache_only=args.cache_only, evaluator=evaluator)
         details = metric.run(loader, model, n=args.samples, gen=gen)
         return {**metric.format_results(), **_judged(lambda: _throne_judged(metric, details, loader, model, judge, ds))}
     if args.metric == "faithscore":
@@ -221,7 +222,7 @@ def _throne_judged(metric, details, loader, model, judge, ds):
     return metric.score(details, is_present=present)
 
 
-def _run_nope(args):
+def _run_nope(args, model=None):
     from metrics.nope import NOPEMetric
     from predict.factory import build_predictor
 
@@ -231,7 +232,8 @@ def _run_nope(args):
     metric = NOPEMetric(turn2_path=str(args.nope_turn2), image_dir=str(image_dir),
                         turn1_path=str(args.nope_turn1) if args.nope_turn1 else None)
     records = metric.records[:args.samples]
-    model = build_predictor(args.model or "paligemma", cache_only=args.cache_only)
+    if model is None:
+        model = build_predictor(args.model or "paligemma", cache_only=args.cache_only)
     if not args.cache_only:
         model.load_model()
     outputs = []
@@ -252,7 +254,9 @@ def _run_nope(args):
     return metric.format_results()
 
 
-def main(argv=None):
+def main(argv=None, model=None, judge=None, evaluator=None):
+    """The CLI. ``model`` (a Predictor), ``judge`` (a judge.Judge) and ``evaluator`` (THRONE's
+    ``prompts -> answers`` callable) replace the ones the flags would build."""
     args = _parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -260,7 +264,8 @@ def main(argv=None):
         raise SystemExit("--samples must be positive")
     if args.cache_only and args.metric == "faithscore":
         raise SystemExit("--cache-only does not cover FaithScore: its verifier and Llama always load")
-    results = _run_nope(args) if args.metric == "nope" else _run_dataset_metric(args)
+    results = (_run_nope(args, model) if args.metric == "nope"
+               else _run_dataset_metric(args, model, judge, evaluator))
     rendered = json.dumps(results, indent=2, default=str)
     print(rendered)
     if args.output:
