@@ -55,8 +55,13 @@ def _resolve_key(model_key: Optional[str]) -> str:
 
 
 def _model_name(entry: Entry, env: Mapping[str, str]) -> str:
-    for var in (entry.env,) if isinstance(entry.env, str) else entry.env:
+    names = (entry.env,) if isinstance(entry.env, str) else entry.env
+    for i, var in enumerate(names):
         if var in env:
+            # A shared fallback variable (e.g. MIRAGE_QWEN_MODEL_PATH for both Qwen sizes) must
+            # point at this row's checkpoint; a dedicated variable may name any local dir.
+            if i and parse_model_name(env[var])[0].rsplit("/", 1)[-1] != entry.default.rsplit("/", 1)[-1]:
+                raise ValueError(f"${var}={env[var]!r} is not {entry.default}; set ${names[0]} instead")
             return env[var]
     return entry.default
 
@@ -92,8 +97,14 @@ def build_model(model_key: Optional[str] = None, **overrides) -> Any:
     entry = REGISTRY[_resolve_key(model_key)]
     module_name, class_name = entry.target.split(":")
     model_cls = getattr(importlib.import_module(module_name), class_name)
+    # The registry mirror must match the class pin, or identity_for and the cache disagree.
+    if getattr(model_cls, "cache_name", None) != entry.cache_name:
+        raise RuntimeError(f"{entry.target}.cache_name != registry cache_name {entry.cache_name!r}")
     overrides.setdefault("model_name", _model_name(entry, os.environ))
-    return model_cls(**overrides)
+    model = model_cls(**overrides)
+    if "torch_dtype" not in overrides and str(getattr(model, "torch_dtype", None)) != entry.dtype:
+        raise RuntimeError(f"{entry.target} dtype {getattr(model, 'torch_dtype', None)} != registry dtype {entry.dtype}")
+    return model
 
 
 def build_predictor(model: Any = None, key: Optional[str] = None,
@@ -116,6 +127,8 @@ def build_predictor(model: Any = None, key: Optional[str] = None,
         its ``model_key`` attribute records the key.
     """
     if model is None or isinstance(model, str):
+        if model is not None and key is not None and key.lower() != model.lower():
+            raise ValueError(f"model {model!r} and key {key!r} disagree")
         key = _resolve_key(model or key)
         model = build_model(key, **overrides)
     elif key is None or overrides:
