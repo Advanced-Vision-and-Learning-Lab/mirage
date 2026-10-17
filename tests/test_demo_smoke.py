@@ -11,9 +11,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import predict.factory as predictor_factory
 import run
-from metrics.base_metric import BaseMetric
+from metrics.base_metric import BaseMetric, MissingVerdicts
 
 
 def test_run_one_coco_image(tmp_path, monkeypatch, capsys):
@@ -49,8 +48,6 @@ def test_run_one_coco_image(tmp_path, monkeypatch, capsys):
             calls.append(prompt)
             return "yes"
 
-    monkeypatch.setattr(predictor_factory, "build_predictor", lambda *args, **kwargs: FakeModel())
-
     # Bypass the NLTK-backed CHAIR scorer while exercising run.py's real data, caption and CLI flow.
     fake_chair = types.ModuleType("metrics.chair")
 
@@ -58,6 +55,13 @@ def test_run_one_coco_image(tmp_path, monkeypatch, capsys):
         def __init__(self, **kwargs):
             super().__init__("chair")
             self.captions = []
+
+        @classmethod
+        def for_dataset(cls, ds, loader):
+            return cls()
+
+        def reference_objects(self, captions_json, images):
+            return {}
 
         def evaluate(self, captions, ground_truth):
             self.captions = captions
@@ -67,19 +71,25 @@ def test_run_one_coco_image(tmp_path, monkeypatch, capsys):
             return {"caption_count": len(self.captions), "caption": self.captions[0]}
 
     fake_chair.ChairMetric = FakeChairMetric
-    fake_chair.vg_vocabulary = None  # Visual Genome only
     monkeypatch.setitem(sys.modules, "metrics.chair", fake_chair)
+
+    # No stored verdicts for the fake model: the judged block reports them as missing.
+    def judge(kind, items, **kwargs):
+        raise MissingVerdicts(kind, [("coco_1", "yes")])
+
+    monkeypatch.setattr(run, "_check_judged_inputs", lambda args: None)  # NLTK data, reference captions
 
     output_path = tmp_path / "results.json"
     assert run.main([
         "--dataset", "coco", "--metric", "chair", "--model", "paligemma",
         "--samples", "1", "--annotations", str(annotations), "--images", str(images_dir),
         "--output", str(output_path),
-    ]) == 0
+    ], model=FakeModel(), judge=judge) == 0
     assert len(calls) == 1
     assert json.loads(output_path.read_text(encoding="utf-8")) == {
         "caption_count": 1,
         "caption": "yes",
+        "missing_verdicts": [["coco_1", "yes"]],
         "cache_stats": {},
     }
     assert '"caption_count": 1' in capsys.readouterr().out
