@@ -142,7 +142,6 @@ def _evaluate(args, model, loader, all_objects):
 
 def _run_nope(args):
     from metrics.nope import NOPEMetric
-    from predict.cache import SQLiteResponseCache
     from predict.factory import build_predictor
 
     if not args.nope_turn2:
@@ -151,8 +150,7 @@ def _run_nope(args):
     metric = NOPEMetric(turn2_path=str(args.nope_turn2), image_dir=str(image_dir),
                         turn1_path=str(args.nope_turn1) if args.nope_turn1 else None)
     records = metric.records[:args.samples]
-    model = build_predictor(args.model or "paligemma",
-                            cache=SQLiteResponseCache(readonly=True) if args.cache_only else None)
+    model = build_predictor(args.model or "paligemma", cache_only=args.cache_only)
     if not args.cache_only:
         model.load_model()
     outputs = []
