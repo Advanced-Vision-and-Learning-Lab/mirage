@@ -230,10 +230,9 @@ def _preflight() -> None:
     if sys.version_info < (3, 12):
         # The reference sums class-wise THRONE P and R in another order; only 3.12's sum() agrees to the last bit.
         raise SystemExit(f"--check needs Python 3.12 or newer, not {sys.version.split()[0]}")
-    for resource in ("tokenizers/punkt_tab", "taggers/averaged_perceptron_tagger_eng", "corpora/stopwords",
-                     "corpora/wordnet"):
+    for resource in ("tokenizers/punkt_tab", "taggers/averaged_perceptron_tagger_eng", "corpora/stopwords"):
         nltk.data.find(resource)
-    from nltk.corpus import wordnet
+    from nltk.corpus import wordnet  # LookupError when missing (it is usually a zip)
 
     if wordnet.get_version() != "3.0":
         raise SystemExit(f"--check needs WordNet 3.0, not {wordnet.get_version()}")
