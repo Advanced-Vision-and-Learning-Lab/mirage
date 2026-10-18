@@ -1,69 +1,49 @@
 dataset	image_id	object	reason
-coco	252219	bottle	unsure
-coco	386912	bowl	unsure
-coco	348881	bus	unsure
 coco	289393	truck	present
-coco	303818	potted plant	unsure
 coco	336587	traffic light	present
-coco	562121	cow	unsure
+coco	511321	airplane	unsure
 coco	266409	backpack	present
-coco	400573	sandwich	unsure
 coco	347693	bench	present
-coco	347693	chair	unsure
-coco	514508	bench	unsure
-coco	340175	orange	unsure
 coco	57597	handbag	unsure
-coco	217285	handbag	unsure
 coco	236412	fork	unsure
 coco	301135	potted plant	present
 coco	580294	bottle	unsure
-coco	329219	chair	unsure
-coco	186980	bottle	unsure
-coco	214720	bottle	unsure
-coco	545826	elephant	unsure
+coco	186980	bottle	present
+coco	566524	handbag	unsure
+coco	545826	elephant	present
+coco	218091	clock	unsure
 coco	177935	fork	unsure
 coco	38829	potted plant	present
 coco	442480	suitcase	unsure
-coco	338560	truck	unsure
-coco	140640	bowl	unsure
+coco	140640	bowl	present
 coco	516708	car	unsure
-coco	554735	laptop	present
 coco	578489	book	unsure
-coco	578489	chair	unsure
-coco	151000	potted plant	unsure
+coco	151000	potted plant	present
 coco	189436	chair	unsure
-coco	138819	bowl	unsure
 coco	302165	bowl	unsure
 coco	311303	spoon	unsure
-coco	260470	bottle	unsure
-coco	205542	bear	unsure
-coco	78266	boat	unsure
-coco	569917	cup	unsure
+coco	205542	bear	present
+coco	569917	cup	present
 coco	36494	knife	unsure
-vg	1	hobby	unsure
-vg	2	grass stands	unsure
 vg	2	four pieces of toast	junk
 vg	2	coastal	junk
 vg	3	burger pattie	junk
 vg	3	this is a pillar	junk
 vg	4	power cord	present
-vg	5	attention	unsure
-vg	5	brown card board	unsure
+vg	5	brown card board	present
 vg	7	ernie	junk
 vg	8	this	junk
 vg	8	poreclain	junk
-vg	8	foot rest	unsure
-vg	9	right tower	unsure
+vg	9	right tower	present
 vg	9	water is dark brown	junk
 vg	10	2. swan	junk
 vg	10	preforations	junk
-vg	11	metal brace	unsure
-vg	15	rusted/silver pole	unsure
-vg	16	tan car	unsure
+vg	11	metal brace	present
+vg	15	rusted/silver pole	present
+vg	16	tan car	present
 vg	16	outdoor area	present
 vg	18	nordefeldt	junk
 vg	19	eject	junk
-vg	20	front way	unsure
 vg	21	bokes	junk
 vg	22	horse has a mane	junk
 vg	23	curvy	junk
@@ -72,79 +52,61 @@ vg	24	nacklace	junk
 vg	25	blue curtains	unsure
 vg	25	window balcony	present
 vg	25	descriptive	junk
-vg	26	tail reflector	unsure
 vg	26	grass spot	present
-vg	27	outside door	unsure
+vg	27	outside door	present
 vg	28	toungue	junk
 vg	28	food remants	junk
-vg	30	light on front	unsure
+vg	30	light on front	present
 vg	31	black wires	present
 vg	31	trunck	junk
-vg	32	flaps	unsure
 vg	33	runnig	junk
-vg	33	colored patch	unsure
+vg	33	colored patch	present
 vg	37	personthigh	junk
-vg	38	splatters	unsure
-vg	39	bright line	unsure
-vg	40	yellow rim	unsure
-vg	41	black rectangle	unsure
-vg	43	seaport is	unsure
-vg	43	green holly leaf	unsure
+vg	39	bright line	present
+vg	40	yellow rim	present
+vg	41	black rectangle	present
 vg	44	8 minutes	junk
 vg	45	tan shoe	unsure
-vg	45	hanging over tube	unsure
 vg	47	kandos	junk
 vg	47	rectangle window	present
-vg	48	crossed arm	unsure
-vg	48	roman letters	unsure
+vg	48	roman letters	present
 vg	50	buttons on a keyboar	junk
-vg	51	spatula/hand	unsure
-vg	52	erosion mark	unsure
+vg	51	spatula/hand	present
 vg	53	tecate	junk
 vg	53	suv	unsure
-vg	54	lots	unsure
 vg	55	sit	junk
 vg	56	nude mad	junk
 vg	56	leather boots	unsure
 vg	56	glover	junk
-vg	57	black accents	unsure
+vg	57	black accents	present
 vg	57	trunk of a palm tree	junk
-vg	59	table and seats	unsure
-vg	61	tiles roof	unsure
+vg	61	tiles roof	present
 vg	65	whitehelmet	junk
 vg	66	team uniform	present
 vg	67	orage	junk
-vg	69	gray side.	unsure
 vg	69	black shoe on man	junk
 vg	70	and a white jacket	junk
-vg	70	watches	unsure
-vg	71	wate tide	unsure
 vg	72	259	junk
 vg	74	zig zags on the	junk
 vg	75	blackdog	junk
 vg	75	babay	junk
-vg	76	glass item	unsure
 vg	78	cigarrate	junk
 vg	79	sfrork	junk
-vg	81	shaded areas	unsure
+vg	81	shaded areas	present
 vg	87	calm surface	present
 vg	89	eating on her patio	junk
-vg	90	power boxes	unsure
-vg	92	reddish countertop	unsure
+vg	92	reddish countertop	present
 vg	92	tinkerbell	junk
 vg	93	browncows	junk
-vg	93	beiged wall	unsure
 vg	97	dandylions	junk
-vg	97	outer part	unsure
+vg	97	outer part	present
 vg	99	"""two bears roaming"	junk
-vg	99	passage	unsure
-vg	103	easement	unsure
+vg	99	passage	present
 vg	104	valero	junk
 vg	104	tethercord	junk
-vg	105	licenses	unsure
+vg	105	licenses	present
 vg	110	blinds/window	present
-vg	113	caution sticker	unsure
-vg	113	twig branches	unsure
+vg	113	twig branches	present
 vg	114	uxcamp	junk
 vg	118	fan in a corner	junk
 vg	119	lifering	junk
@@ -154,21 +116,16 @@ vg	122	44	junk
 vg	126	tanltop	junk
 vg	130	handbars	junk
 vg	130	morter	junk
-vg	131	blocks/blanket	unsure
-vg	131	grass food	unsure
-vg	131	olive colored	unsure
-vg	132	cross bar	unsure
 vg	133	there is a cap	junk
 vg	134	3 sign	junk
 vg	135	bus has a side	junk
 vg	136	hand is long	junk
-vg	137	cracked sidewalk	unsure
 vg	137	her pants	junk
 vg	138	firgurine	junk
 vg	139	fajita	junk
 vg	140	solarpanel	junk
 vg	140	sinkbowl	junk
-vg	141	printed name	unsure
+vg	141	printed name	present
 vg	142	bathed	junk
 vg	142	04:04:46 pm	junk
 vg	144	h2o	junk
@@ -177,7 +134,7 @@ vg	146	5	junk
 vg	148	blue tip of boat	junk
 vg	150	this is a sign post	junk
 vg	150	bag of potato chips	junk
-vg	150	old stain	unsure
+vg	150	old stain	present
 vg	152	vhs	junk
 vg	153	basball	junk
 vg	154	ledge of window	present
@@ -191,15 +148,13 @@ vg	164	painted in the road	junk
 vg	164	sentosa	junk
 vg	165	saddlebred ln	junk
 vg	168	appartment	junk
-vg	168	electric toaster	unsure
 vg	170	blous	junk
 vg	171	splashed	junk
 vg	172	man wearing tie	unsure
 vg	173	gundaroo	junk
-vg	176	white ball cap	unsure
 vg	176	recordable vhs	junk
 vg	180	"""retro shops and .."""	junk
-vg	181	enclosure.	unsure
+vg	181	enclosure.	present
 vg	184	number 67	junk
 vg	184	blue and white surf	junk
 vg	185	man on a snowboard	junk
@@ -208,125 +163,101 @@ vg	186	chandellier	junk
 vg	189	toolbars	junk
 vg	192	woman's-green shirt	junk
 vg	193	tusk of the	junk
-vg	194	large landscape	unsure
+vg	194	large landscape	present
 vg	197	raddishes	junk
 vg	199	scaffolding for the	junk
 vg	200	flickr.com	junk
 vg	200	shadow in the sand	junk
-vg	201	image of bottle	unsure
 vg	202	statie	junk
 vg	202	mario	junk
 vg	203	leg griaffe	junk
 vg	204	freesbie	junk
 vg	205	beachwalk	junk
-vg	205	grass sprout	unsure
 vg	206	windshield wipper	junk
 vg	208	youtube	junk
-vg	209	under arm	unsure
 vg	209	pamt	junk
-vg	210	graphic part	unsure
+vg	210	graphic part	present
 vg	211	189	junk
 vg	212	provide	junk
 vg	212	folige	junk
-vg	212	disc holder	unsure
-vg	213	stillness	unsure
+vg	212	disc holder	present
 vg	213	sausage pattie	junk
-vg	214	green accents	unsure
-vg	215	round disc	unsure
-vg	219	purple candy	unsure
+vg	215	round disc	present
 vg	220	rescue dingy	junk
-vg	222	horizontal ridge	unsure
+vg	222	horizontal ridge	present
 vg	224	gloes	junk
+vg	225	red rail	present
 vg	226	helicoptor	junk
 vg	227	litter scooper	junk
 vg	228	cloud in blue sky	junk
 vg	229	pair of flip flops	junk
 vg	229	flloor	junk
 vg	232	plushie	junk
-vg	232	black metal	unsure
-vg	235	part of slab	unsure
+vg	235	part of slab	present
 vg	237	1:39	junk
 vg	239	thorny	junk
 vg	242	silver door handle	unsure
 vg	243	asutralia	junk
 vg	243	part of a shoe	junk
 vg	243	marvin	junk
-vg	244	sd	unsure
 vg	245	chichester	junk
-vg	245	worn step	unsure
-vg	248	quadriceps	unsure
+vg	245	worn step	present
 vg	248	clearsky	junk
 vg	249	door with knob	unsure
 vg	250	mage	junk
-vg	252	roof truss	unsure
+vg	252	roof truss	present
 vg	252	macarons	junk
 vg	255	green object	present
 vg	255	selfie	junk
 vg	256	amana	junk
 vg	257	blk	junk
 vg	258	ax written on wall	junk
-vg	258	gray metal pole	unsure
+vg	258	gray metal pole	present
 vg	260	an imac	junk
-vg	262	shadow part	unsure
+vg	262	shadow part	present
 vg	262	cardins	junk
 vg	262	tree on side	present
 vg	263	scaffolding for the	junk
 vg	264	david cameron	junk
 vg	266	cafã©	junk
-vg	266	utilities	unsure
-vg	267	areas	unsure
-vg	268	orange patterns	unsure
-vg	269	blue,	unsure
+vg	267	areas	present
 vg	269	wearig flip flops	unsure
 vg	271	white jerssey	junk
-vg	272	barge	unsure
-vg	272	mo	unsure
 vg	272	tabe	junk
 vg	273	on post	junk
-vg	275	some type	unsure
 vg	275	a456	junk
-vg	276	butch	unsure
 vg	277	rear left tail light	junk
 vg	277	nose.	present
 vg	277	rutter	junk
 vg	278	red and green pepper	junk
-vg	278	dish basket	unsure
+vg	278	dish basket	present
 vg	279	headlghts	junk
 vg	279	womant	junk
-vg	280	sight hole	unsure
 vg	281	red and white sticke	junk
-vg	281	wearing plaid coat	unsure
-vg	281	haul	unsure
 vg	282	braclets	junk
 vg	283	road divider	present
 vg	285	sauve	junk
-vg	287	lower right	unsure
+vg	287	lower right	present
 vg	287	doors.	present
 vg	289	silverwar	junk
 vg	290	grey/tarmac road	present
 vg	291	white and blue shirt	junk
-vg	291	top part	unsure
+vg	291	top part	present
 vg	294	5:30	junk
 vg	295	boy on a bicycle	junk
-vg	296	going down	unsure
-vg	297	shelter	unsure
 vg	300	foreign text	present
-vg	301	lawn grass	unsure
 vg	304	rolloftissuepaper	junk
-vg	305	leaf accent	unsure
 vg	306	elbowpad	junk
-vg	308	light orange	unsure
+vg	308	light orange	present
 vg	308	caught	junk
 vg	308	tall-street light	present
-vg	310	dried out	unsure
-vg	310	flower top	unsure
-vg	311	sign window	unsure
+vg	311	sign window	present
 vg	311	water mixed	junk
 vg	313	stroehmann	junk
 vg	313	icona5 written	junk
 vg	314	building's bottom	present
-vg	315	front panel	unsure
-vg	316	lantern light	unsure
+vg	315	front panel	present
+vg	316	lantern light	present
 vg	316	tail of the sheep	junk
 vg	317	himself	junk
 vg	318	jocket	junk
@@ -334,7 +265,7 @@ vg	320	9:00	junk
 vg	320	twood	junk
 vg	320	in front of water	junk
 vg	321	section of a decorat	junk
-vg	322	metal containers	unsure
+vg	322	metal containers	present
 vg	323	shirt.	present
 vg	326	photo is framed	junk
 vg	328	convertable	junk
@@ -342,33 +273,26 @@ vg	331	trask	junk
 vg	332	towls	junk
 vg	333	poinsetta	junk
 vg	333	whitearrow	junk
-vg	333	white and brown	unsure
 vg	338	riverboat	junk
-vg	339	questions	unsure
-vg	341	window is close	unsure
+vg	341	window is close	present
 vg	342	ferris	junk
 vg	342	fisbee	junk
 vg	343	hand on his leg	junk
-vg	343	border line	unsure
+vg	343	border line	present
 vg	345	'8'	junk
 vg	346	wessels	junk
 vg	347	bacardi	junk
-vg	351	blue color	unsure
+vg	351	blue color	present
 vg	353	hand lifting	junk
-vg	353	yellow behind it	unsure
-vg	354	engine vent	unsure
-vg	354	protruding light	unsure
-vg	355	thin marks	unsure
 vg	355	freflction	junk
-vg	360	handle grip	unsure
-vg	361	black clothing	unsure
+vg	360	handle grip	present
+vg	361	black clothing	present
 vg	361	dark jeans	unsure
 vg	362	is a building	junk
-vg	364	seating section	unsure
-vg	365	piece litter	unsure
+vg	364	seating section	present
 vg	365	her arm	junk
 vg	366	telelphone	junk
-vg	368	white cloud cover	unsure
+vg	368	white cloud cover	present
 vg	369	bannerster	junk
 vg	369	ramakin	junk
 vg	370	arm around a woman	junk
@@ -378,81 +302,59 @@ vg	372	walllpaper	junk
 vg	372	an oven	junk
 vg	372	head of cow	unsure
 vg	373	unibrow	junk
-vg	377	moniker	unsure
-vg	380	locking	unsure
-vg	387	light area	unsure
+vg	387	light area	present
 vg	390	that spell way	junk
 vg	393	stoller	junk
 vg	393	norwood	junk
 vg	397	hankerchief	junk
 vg	398	iquique	junk
 vg	398	red hair in a bun	junk
-vg	398	signs/snow	unsure
+vg	398	signs/snow	present
 vg	401	aclu	junk
 vg	404	freezbee	junk
 vg	405	small patch of grass	junk
 vg	407	side tire of bus	junk
-vg	409	commercial printing	unsure
 vg	409	palletline	junk
-vg	409	edge line	unsure
-vg	411	blue and khaki	unsure
+vg	409	edge line	present
 vg	411	homefries	junk
 vg	413	$4.97	junk
 vg	413	ici	junk
 vg	413	knob of pot lid	junk
-vg	414	wall.	unsure
 vg	415	continue	junk
 vg	416	man's/brown shoes	junk
 vg	417	to take a picture	junk
 vg	417	there is a structure	junk
 vg	418	e 7	junk
-vg	419	two lights	unsure
-vg	420	ge	unsure
 vg	421	line on the ground	junk
 vg	421	paches	junk
-vg	423	balancing	unsure
 vg	423	snow onboard	junk
 vg	424	man's neck	present
-vg	424	building siding	unsure
-vg	430	tabs	unsure
-vg	431	light_post	unsure
+vg	424	building siding	present
 vg	431	yellow linw	junk
 vg	432	wood slates	present
-vg	434	blind	unsure
 vg	434	giraff	junk
 vg	435	interior lights on	junk
-vg	435	front panel	unsure
-vg	436	rears	unsure
+vg	435	front panel	present
 vg	436	building's	present
-vg	437	dark rim	unsure
-vg	437	la	unsure
-vg	438	astro's	unsure
+vg	437	dark rim	present
 vg	439	newlin	junk
 vg	440	orange juice	unsure
 vg	443	grass clumped	junk
 vg	443	sweets	unsure
-vg	443	plastic bad	unsure
-vg	445	window display	unsure
-vg	446	painted red	unsure
-vg	446	wool hat	unsure
-vg	448	small gap	unsure
-vg	448	colored wires	unsure
-vg	451	rusty nut	unsure
+vg	443	plastic bad	present
+vg	446	painted red	present
+vg	448	small gap	present
 vg	451	greenbananas	junk
 vg	451	455	junk
 vg	452	scarf draped	junk
-vg	456	warning signs	unsure
-vg	457	projection	unsure
-vg	457	round reflector	unsure
-vg	458	lane indication	unsure
+vg	456	warning signs	present
+vg	458	lane indication	present
 vg	458	pant leg	present
-vg	459	sidewalk store	unsure
-vg	460	next seat	unsure
+vg	459	sidewalk store	present
 vg	462	kickstantd	junk
 vg	463	hindlegs	junk
 vg	464	314	junk
 vg	465	whitearrow	junk
-vg	465	small bar	unsure
 vg	465	ingredientts	junk
 vg	466	fun caft	junk
 vg	466	whizzo	junk
@@ -460,20 +362,15 @@ vg	469	bandanges	junk
 vg	470	red sox	junk
 vg	471	vancouver 2010	junk
 vg	472	brickway	junk
-vg	473	extensions	unsure
 vg	474	nunchuk	junk
 vg	477	side mirror on bike	junk
 vg	479	seat belt	unsure
-vg	484	hand is holding	unsure
-vg	484	tan crossing street	unsure
+vg	484	hand is holding	present
 vg	485	roofed building	present
-vg	485	oil marks	unsure
-vg	487	one knee	unsure
+vg	487	one knee	present
 vg	488	arch window	unsure
 vg	488	wooden wall is brown	junk
-vg	490	main valve	unsure
 vg	491	foregroud	junk
-vg	492	carved head	unsure
 vg	500	part of a light	junk
 vg	501	on the sidewalk	junk
 vg	501	pooper	junk
@@ -481,32 +378,25 @@ vg	502	wardrobre	junk
 vg	502	playing a video game	junk
 vg	506	on motorcycle	junk
 vg	506	redribbon	junk
-vg	512	hollow	unsure
-vg	514	angle bolt	unsure
 vg	515	manniquin	junk
 vg	515	cheek	unsure
 vg	516	tree's	present
-vg	517	wall panel	unsure
-vg	518	gas tank opening	unsure
 vg	518	mallar	junk
 vg	519	white accents	present
 vg	520	horizontal stabilize	junk
 vg	520	chocolat	junk
 vg	521	green doorway	present
 vg	522	camerman	junk
-vg	522	argyle design	unsure
-vg	522	chunk	unsure
 vg	523	adverstisement	junk
 vg	524	air austal	junk
 vg	526	posting hanged	junk
 vg	527	black refridgerator	junk
-vg	528	right frame	unsure
 vg	528	nose of a skull	junk
 vg	529	welcome to marceline	junk
 vg	529	calking	junk
 vg	530	snowy	junk
 vg	532	land on other side	junk
-vg	536	pupil desk	unsure
+vg	536	pupil desk	present
 vg	537	refection	present
 vg	540	wildbeast	junk
 vg	540	black trim on racket	junk
@@ -514,40 +404,29 @@ vg	542	hlb	junk
 vg	546	rolloftissuepaper	junk
 vg	547	bueys	junk
 vg	552	lettering	present
-vg	553	green zone	unsure
 vg	554	brikes	junk
 vg	557	toppping	junk
 vg	560	bench is in sand	junk
 vg	560	intertube	junk
-vg	561	white inner leg	unsure
-vg	561	letter u	unsure
+vg	561	white inner leg	present
 vg	564	cair	junk
 vg	564	motorcycle on displa	junk
 vg	565	toppeddish	junk
 vg	565	of a road	junk
-vg	566	horse's eyes	unsure
 vg	567	raburn	junk
 vg	567	train is seen	junk
-vg	567	work	unsure
 vg	569	with no curtain	junk
-vg	569	arm protection pad	unsure
 vg	570	harddrive	junk
-vg	572	high neck	unsure
 vg	573	2 hour limit sign	junk
 vg	574	door lifted	junk
-vg	575	photo stamp	unsure
 vg	575	blubs	junk
 vg	576	svannah	junk
 vg	577	floral arragemet	junk
-vg	578	metal fasteners	unsure
 vg	581	on back wall	junk
 vg	581	lenox	junk
-vg	582	trusty	unsure
 vg	582	white and blue tile	junk
-vg	582	box unit	unsure
+vg	582	box unit	present
 vg	585	beverage in a cup	junk
-vg	587	beginner	unsure
-vg	588	helpful woman	unsure
 vg	588	reddirt	junk
 vg	591	squarestones	junk
 vg	592	radio nz	junk
@@ -557,14 +436,9 @@ vg	596	foot raised	junk
 vg	598	3 drink	junk
 vg	599	greenfoliage	junk
 vg	601	3 hot dogs	junk
-vg	601	small dent	unsure
 vg	601	railings	present
-vg	602	over	unsure
 vg	604	funbox	junk
 vg	604	smilingwoman	junk
-vg	605	toyota emblem	unsure
-vg	605	municipal building	unsure
-vg	605	blue gold	unsure
 vg	608	letttering	junk
 vg	609	two tone greenish	junk
 vg	610	carpeted	junk

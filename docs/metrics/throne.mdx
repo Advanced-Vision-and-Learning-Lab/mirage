@@ -1,0 +1,12 @@
+---
+title: "THRONE"
+description: "Caption hallucination graded by a language model."
+---
+
+THRONE has a language model read each caption and answer, for every object category, whether the caption mentions it. Precision and recall are computed per category, averaged over categories, and combined into F0.5.
+
+Paper: Kaul et al., "THRONE: An Object-based Hallucination Benchmark for the Free-form Generations of Large Vision-Language Models", CVPR 2024. [arXiv:2405.05256](https://arxiv.org/abs/2405.05256)
+
+## Modification
+
+Mirage uses one evaluator, FLAN-T5-XL with 3 question phrasings, where the paper votes with three model sizes. Captions under 5 words count as empty because the evaluator credited the caption "yes" with 196 objects, and on Visual Genome the labels are completed by the judge and only categories with at least 5 images are averaged.

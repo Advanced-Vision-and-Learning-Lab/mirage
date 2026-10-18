@@ -10,8 +10,31 @@
   "navigation": {
     "pages": [
       {
-        "group": "Mirage",
-        "pages": []
+        "group": "Get started",
+        "pages": [
+          "index",
+          "quickstart",
+          "overview"
+        ]
+      },
+      {
+        "group": "Metrics",
+        "pages": [
+          "metrics/overview",
+          "metrics/pope",
+          "metrics/rope",
+          "metrics/chair",
+          "metrics/throne",
+          "metrics/why"
+        ]
+      },
+      {
+        "group": "Components",
+        "pages": [
+          "judge",
+          "predict",
+          "models"
+        ]
       }
     ]
   }

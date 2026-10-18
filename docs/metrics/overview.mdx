@@ -1,0 +1,15 @@
+---
+title: "Metrics"
+description: "The four hallucination metrics Mirage implements."
+---
+
+Mirage implements four object hallucination metrics. Each keeps its paper's questions and scoring, and adds a named modification where sparse labels break it. Every run reports the raw paper score next to the modified score.
+
+| Metric | What the model does | Headline score |
+|---|---|---|
+| [POPE](/metrics/pope) | Answers yes or no: is this object in the image? | Mod-POPE balanced accuracy |
+| [ROPE](/metrics/rope) | Names the object inside a marked box | Mod-ROPE accuracy |
+| [CHAIR](/metrics/chair) | Writes a caption | Mod-CHAIR F0.5 |
+| [THRONE](/metrics/throne) | Writes a caption | THRONE class-wise F0.5 |
+
+The data behind each change is on [Why the metrics are modified](/metrics/why).

@@ -1,0 +1,15 @@
+---
+title: "Predict"
+description: "How Mirage runs inference and caches answers."
+---
+
+Predict is how Mirage runs inference. A `Predictor` sends each request to a backend, and today every backend runs the model locally on your GPU. An API backend can be added behind the same interface later, since metrics only call `predictor.predict(prompt, image, **gen)`.
+
+## Cache
+
+Every answer is saved in a SQLite file, `cache/predictions.sqlite` or `$MIRAGE_CACHE_DIR/predictions.sqlite`. The key is a hash of the model identity (class, model id and revision), the image, the prompt and the generation settings, so a repeated request returns the saved answer and never loads the model. `--cache-only` opens the cache read only and stops on the first miss.
+
+Be careful with what the key does not cover:
+- A bare Hugging Face id is keyed as "unpinned". Set `MIRAGE_<MODEL>_MODEL_PATH` to a snapshot folder to pin the revision.
+- Library versions are not keyed. A new `transformers` or `torch` can change answers, and a new Pillow can change image hashes.
+- The THRONE evaluator's input window is keyed. Six Visual Genome THRONE results were made at 512 tokens (Qwen2-VL-2B, Qwen2-VL-7B, Gemma-4-E4B, Ministral-3-8B, Ministral-3-14B, Aya-Vision-8B), so replay them with `--throne-evaluator-max-tokens 512`.

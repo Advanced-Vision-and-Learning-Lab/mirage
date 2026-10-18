@@ -1,0 +1,82 @@
+---
+title: "Why the metrics are modified"
+description: "The failures found and the data behind each change."
+---
+
+The original metrics assume every object in an image is labelled. Visual Genome labels only some objects and uses free text names, so the raw scores measured label gaps more than hallucination. Each fix below needed someone to look at the image, which is why Mirage uses a [judge](/judge).
+
+All numbers cover the 9 models on the first 500 Visual Genome images. Rank is in brackets.
+
+## POPE
+
+Visual Genome "no" questions pick their object from 82,827 free text names. Of the 1,500 "no" questions, 301 were junk names like "stillness" and "flloor", 101 named objects that were in the image, and 15 could not be checked from the image.
+
+![Rank change from POPE accuracy to Mod-POPE](/images/rank-pope.svg)
+
+| Model | POPE accuracy, all questions | Mod-POPE balanced accuracy |
+|---|---:|---:|
+| Gemma-4-12B | 90.4 (1) | 93.0 (1) |
+| Gemma-4-E4B | 89.6 (3) | 92.0 (2) |
+| Qwen2-VL-7B | 90.0 (2) | 91.9 (3) |
+| Qwen2-VL-2B | 88.9 (4) | 91.0 (4) |
+| PaliGemma-3B | 88.3 (6) | 90.9 (5) |
+| Aya-Vision-8B | 88.1 (7) | 90.8 (6) |
+| Muse-Glimmer-30B | 88.6 (5) | 90.6 (7) |
+| Ministral-3-8B | 84.6 (8) | 86.6 (8) |
+| Ministral-3-14B | 83.9 (9) | 85.5 (9) |
+
+## ROPE
+
+Only 214 of 2,500 Visual Genome boxes hold a single object, so a box labelled "road" with a car on it graded the answer "car" as wrong. The old answer parser also cut "piece of cake" to "piece". For Gemma-4-12B, fixing the parser alone moved ROPE from 21.4 to 35.6, and the judge moved it to 65.5.
+
+![Gemma-4-12B ROPE accuracy after each fix](/images/rope-steps.svg)
+
+![Rank change from strict ROPE to Mod-ROPE](/images/rank-rope.svg)
+
+| Model | Strict ROPE | Mod-ROPE |
+|---|---:|---:|
+| Gemma-4-12B | 21.4 (1) | 65.5 (1) |
+| Muse-Glimmer-30B | 6.3 (7) | 64.4 (2) |
+| Qwen2-VL-7B | 11.0 (2) | 50.6 (3) |
+| Gemma-4-E4B | 9.5 (3) | 48.9 (4) |
+| Aya-Vision-8B | 9.1 (4) | 46.2 (5) |
+| Qwen2-VL-2B | 8.6 (5) | 43.8 (6) |
+| Ministral-3-14B | 4.2 (8) | 35.8 (7) |
+| PaliGemma-3B | 7.8 (6) | 27.0 (8) |
+| Ministral-3-8B | 3.6 (9) | 24.7 (9) |
+
+## CHAIR
+
+PaliGemma ranked first on raw CHAIR-I because 115 of its 500 captions were under 5 words, such as "kitchen". Sparse labels also counted visible objects like "sky" as hallucinations: in a 50 image check, Gemma-4-12B had 401 flagged words with no matching label, and 228 were visible objects, 165 were not objects at all, and 8 were truly absent.
+
+![Rank change from raw CHAIR-I to Mod-CHAIR F0.5](/images/rank-chair.svg)
+
+| Model | Raw CHAIR-I (lower is better) | Mod-CHAIR-I | Coverage | Mod-CHAIR F0.5 |
+|---|---:|---:|---:|---:|
+| Muse-Glimmer-30B | 81.7 (5) | 1.4 | 45.0 | 79.6 (1) |
+| Aya-Vision-8B | 85.6 (7) | 5.1 | 39.1 | 73.8 (2) |
+| Ministral-3-8B | 87.7 (9) | 6.4 | 35.9 | 70.8 (3) |
+| Gemma-4-12B | 76.8 (4) | 3.3 | 33.8 | 70.5 (4) |
+| Ministral-3-14B | 86.6 (8) | 6.9 | 34.3 | 69.3 (5) |
+| Gemma-4-E4B | 84.1 (6) | 3.0 | 26.9 | 63.8 (6) |
+| PaliGemma-3B | 63.9 (1) | 3.5 | 17.1 | 50.0 (7) |
+| Qwen2-VL-2B | 72.5 (3) | 1.6 | 16.7 | 49.8 (8) |
+| Qwen2-VL-7B | 67.6 (2) | 1.1 | 13.5 | 43.6 (9) |
+
+## THRONE
+
+The evaluator credited about 30 categories per image to PaliGemma's one to three word captions, and the caption "yes" got 196 objects. The paper-style column already uses class-wise F0.5. Mirage adds the 5 word minimum and the judge-completed labels.
+
+![Rank change from paper-style THRONE to Mirage](/images/rank-throne.svg)
+
+| Model | Paper-style | Mirage |
+|---|---:|---:|
+| Muse-Glimmer-30B | 61.5 (1) | 73.9 (1) |
+| Aya-Vision-8B | 59.2 (3) | 71.7 (2) |
+| Gemma-4-12B | 59.2 (2) | 71.4 (3) |
+| Ministral-3-14B | 57.0 (5) | 69.1 (4) |
+| Gemma-4-E4B | 57.0 (6) | 68.9 (5) |
+| Qwen2-VL-2B | 58.6 (4) | 68.7 (6) |
+| Ministral-3-8B | 56.6 (7) | 68.5 (7) |
+| Qwen2-VL-7B | 56.0 (8) | 65.9 (8) |
+| PaliGemma-3B | 50.9 (9) | 63.0 (9) |

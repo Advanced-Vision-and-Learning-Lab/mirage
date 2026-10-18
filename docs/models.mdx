@@ -1,0 +1,35 @@
+---
+title: "Models"
+description: "The models Mirage evaluates and how to add one."
+---
+
+| Key | Model | Wrapper | Local path variable |
+|---|---|---|---|
+| `paligemma` | [google/paligemma-3b-mix-224](https://huggingface.co/google/paligemma-3b-mix-224) | `PaligemmaModel` | `MIRAGE_PALIGEMMA_MODEL_PATH` |
+| `qwen2vl-2b` | [Qwen/Qwen2-VL-2B-Instruct](https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct) | `Qwen2VLModel` | `MIRAGE_QWEN2VL_2B_MODEL_PATH` |
+| `qwen2vl-7b` | [Qwen/Qwen2-VL-7B-Instruct](https://huggingface.co/Qwen/Qwen2-VL-7B-Instruct) | `Qwen2VLModel` | `MIRAGE_QWEN2VL_7B_MODEL_PATH` |
+| `gemma4-e4b` | [google/gemma-4-E4B-it](https://huggingface.co/google/gemma-4-E4B-it) | `Gemma4` | `MIRAGE_GEMMA4_E4B_MODEL_PATH` |
+| `gemma4-12b` | [google/gemma-4-12B-it](https://huggingface.co/google/gemma-4-12B-it) | `Gemma4` | `MIRAGE_GEMMA4_12B_MODEL_PATH` |
+| `ministral3-8b` | [mistralai/Ministral-3-8B-Instruct-2512-BF16](https://huggingface.co/mistralai/Ministral-3-8B-Instruct-2512-BF16) | `Ministral3` | `MIRAGE_MINISTRAL3_8B_MODEL_PATH` |
+| `ministral3-14b` | [mistralai/Ministral-3-14B-Instruct-2512-BF16](https://huggingface.co/mistralai/Ministral-3-14B-Instruct-2512-BF16) | `Ministral3` | `MIRAGE_MINISTRAL3_14B_MODEL_PATH` |
+| `aya-vision-8b` | [CohereLabs/aya-vision-8b](https://huggingface.co/CohereLabs/aya-vision-8b) | `AyaVision` | `MIRAGE_AYA_VISION_8B_MODEL_PATH` |
+| `muse-glimmer-30b` | [meta-models/Muse-Glimmer-30B](https://huggingface.co/meta-models/Muse-Glimmer-30B) | `MuseGlimmer` | `MIRAGE_MUSE_GLIMMER_30B_MODEL_PATH` |
+
+## Add a model
+
+A model is a class in `models/` with `load_model`, `unload_model` and `generate(prompt, image, **gen)`, which returns the answer text. A chat model that takes one image and one text turn can subclass `HFChatVLM`, as Aya Vision does. Register it with one row in `REGISTRY` in `predict/factory.py` and one line in `_MODULES` in `models/__init__.py`, then run it with `--model <key>`.
+
+```python models/aya_vision.py
+from .hf_chat import HFChatVLM
+
+
+class AyaVision(HFChatVLM):
+    """Aya Vision; keys its cache as ``HFChatVLM``."""
+```
+
+```python predict/factory.py
+"aya-vision-8b": Entry("models.aya_vision:AyaVision", "MIRAGE_AYA_VISION_8B_MODEL_PATH",
+                       "CohereLabs/aya-vision-8b", "HFChatVLM", _BF16),
+```
+
+The registry row gives the class, the variable that holds the local model path, the default Hugging Face id, the cache name and the dtype. `build_predictor(key)` wraps the model in a [Predictor](/predict), and the cache name is part of every cache key, so keep it fixed once you have results. A new model's judged scores need verdicts for its own caption mentions, so run it once with `--live-judge`.

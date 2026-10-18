@@ -1,0 +1,43 @@
+---
+title: "Mirage"
+description: "A vision language model eval framework with modified hallucination metrics."
+---
+
+Mirage is an evaluation framework for vision language models. It measures object hallucination with four metrics from the literature: POPE, ROPE, CHAIR and THRONE. Each metric is modified so it still works on datasets with sparse labels, such as Visual Genome.
+
+## Results
+
+9 models, scored on the first 500 images of COCO val2017 and Visual Genome. Higher is better in every column. The best score in each column is bold.
+
+### COCO
+
+| Model | Mod-POPE | Mod-ROPE | Mod-CHAIR F0.5 | THRONE F0.5 |
+|---|---:|---:|---:|---:|
+| Muse-Glimmer-30B | 91.8 | 70.0 | **89.2** | 82.5 |
+| Gemma-4-12B | 92.5 | **74.8** | 84.2 | 79.0 |
+| Gemma-4-E4B | 93.6 | 57.7 | 83.2 | 78.0 |
+| Aya-Vision-8B | **95.4** | 59.2 | 84.2 | 78.8 |
+| Ministral-3-14B | 86.5 | 36.3 | 82.9 | 78.2 |
+| Ministral-3-8B | 86.4 | 26.6 | 82.0 | 78.6 |
+| Qwen2-VL-7B | 93.0 | 38.1 | 85.1 | 82.1 |
+| Qwen2-VL-2B | 93.0 | 10.7 | 84.8 | **82.9** |
+| PaliGemma-3B | 93.9 | 41.4 | 81.7 | 78.7 |
+
+### Visual Genome
+
+| Model | Mod-POPE | Mod-ROPE | Mod-CHAIR F0.5 | THRONE F0.5 |
+|---|---:|---:|---:|---:|
+| Muse-Glimmer-30B | 90.6 | 64.4 | **79.6** | **73.9** |
+| Gemma-4-12B | **93.0** | **65.5** | 70.5 | 71.4 |
+| Gemma-4-E4B | 92.0 | 48.9 | 63.8 | 68.9 |
+| Aya-Vision-8B | 90.8 | 46.2 | 73.8 | 71.7 |
+| Ministral-3-14B | 85.5 | 35.8 | 69.3 | 69.1 |
+| Ministral-3-8B | 86.6 | 24.7 | 70.8 | 68.5 |
+| Qwen2-VL-7B | 91.9 | 50.6 | 43.6 | 65.9 |
+| Qwen2-VL-2B | 91.0 | 43.8 | 49.8 | 68.7 |
+| PaliGemma-3B | 90.9 | 27.0 | 50.0 | 63.0 |
+
+Notes:
+- The judge verdicts behind Mod-POPE, Mod-ROPE and Mod-CHAIR were checked against human labels, see [Judge](/judge).
+- Qwen2-VL-2B answers COCO ROPE boxes with coordinates, so its COCO Mod-ROPE is low.
+- The raw paper scores and the reasons for each change are on [Why the metrics are modified](/metrics/why).

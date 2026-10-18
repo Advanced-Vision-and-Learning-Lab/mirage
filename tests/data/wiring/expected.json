@@ -710,12 +710,12 @@
   "f1_score": 0.923076923076923,
   "judged": {
    "f1": 0.923076923076923,
-   "head": 0.75,
-   "n_head": 8,
+   "head": 0.875,
+   "n_head": 10,
    "n_raw": 12,
    "raw": 0.9166666666666666,
    "raw_balanced": 0.9166666666666667,
-   "yes_ratio": 0.875
+   "yes_ratio": 0.7
   },
   "mode": "random",
   "num_questions": 12,
