@@ -11,15 +11,7 @@
     "pages": [
       {
         "group": "Mirage",
-        "pages": [
-          "index",
-          "getting-started",
-          "datasets",
-          "hpc",
-          "running-evaluations",
-          "metrics-and-models",
-          "maintaining-docs"
-        ]
+        "pages": []
       }
     ]
   }
