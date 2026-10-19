@@ -36,17 +36,17 @@ The registry row gives the class, the variable that holds the local model path, 
 
 ## Thinking ablation
 
-This is separate from the main results. It uses standard COCO POPE, not Mod-POPE, on the same 500 images and 2,641 questions in both modes. With thinking on, the model gets 1,024 extra tokens on top of the 10-token POPE cap.
+This is separate from the main results. It scores COCO with Mod-POPE, as in the main table, on the same 500 images and 2,641 questions in both modes; Mod-POPE keeps 2,615 of them. With thinking on, the model gets 1,024 extra tokens on top of the 10-token POPE cap.
 
-| Model | Thinking | Accuracy | Precision | Recall | F1 | Predicted "yes" |
-|---|---|---:|---:|---:|---:|---:|
-| Gemma-4-12B | off | 93.0% | 97.8% | 85.8% | 91.4% | 37.9% |
-| Gemma-4-12B | on | 94.1% | 97.7% | 88.4% | 92.8% | 39.1% |
-| Gemma-4-E4B | off | 93.5% | 94.2% | 90.6% | 92.4% | 41.6% |
-| Gemma-4-E4B | on | 93.8% | 95.6% | 89.7% | 92.6% | 40.6% |
+| Model | Thinking | Mod-POPE | Mod-POPE F1 | Predicted "yes" | POPE |
+|---|---|---:|---:|---:|---:|
+| Gemma-4-12B | off | 92.5 | 91.8 | 37.9% | 93.0 |
+| Gemma-4-12B | on | 93.6 | 93.1 | 39.2% | 94.1 |
+| Gemma-4-E4B | off | 93.6 | 92.9 | 41.5% | 93.5 |
+| Gemma-4-E4B | on | 93.8 | 93.2 | 40.4% | 93.8 |
 
-Gemma-4-12B gains 1.1 points: false negatives fall from 162 to 132, and false positives go from 22 to 24. Gemma-4-E4B gains 0.3 points and gets more cautious: false positives fall from 64 to 47, and false negatives rise from 107 to 117. A thinking run takes 8 to 11 GPU hours, against about 40 minutes with thinking off. Captions, CHAIR and THRONE were not run with thinking on, since each caption takes 130 to 145 seconds, about 6 times the cost.
+Thinking moves Gemma-4-12B from 92.5 to 93.6. Over all 2,641 questions it misses fewer objects that are there (false negatives fall from 162 to 132) at about the same false positives (22 to 24). Gemma-4-E4B moves only from 93.6 to 93.8 and gets more cautious: false positives fall from 64 to 47, and false negatives rise from 107 to 117. A thinking run takes 8 to 11 GPU hours, against about 40 minutes with thinking off. Captions, CHAIR and THRONE were not run with thinking on, since each caption takes 130 to 145 seconds, about 6 times the cost.
 
-In 11 of the 2,641 Gemma-4-12B answers (0.4%), the thought did not close within 1,034 tokens. Gemma-4-E4B closed every thought. The wrapper logs `Thinking block not closed` and returns the cut-off thought as the answer. The POPE parser checks for negative words first, so all 11 count as "no". At worst, scoring them right would raise accuracy by 0.4 points, to 94.5% or less.
+In 11 of the 2,641 Gemma-4-12B answers, the thought did not close within 1,034 tokens. Gemma-4-E4B closed every thought. The wrapper logs `Thinking block not closed` and returns the cut-off thought as the answer. The POPE parser checks for negative words first, so all 11 count as "no". 8 of the 11 ask about an annotated object, so they count as wrong. If all 8 had been answered right, Gemma-4-12B's Mod-POPE would be at most 94.0.
 
-The keys are `gemma4-e4b-think` and `gemma4-12b-think`. They use a separate class, so their cache keys never mix with thinking off, and they have no judged scores.
+The keys are `gemma4-e4b-think` and `gemma4-12b-think`. They use a separate class, so their cache keys never mix with thinking off. Their Mod-POPE was scored from the cached answers with the same drop list as the main table.
