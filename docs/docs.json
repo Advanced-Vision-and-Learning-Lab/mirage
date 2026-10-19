@@ -10,15 +10,30 @@
   "navigation": {
     "pages": [
       {
-        "group": "Mirage",
+        "group": "Get started",
         "pages": [
           "index",
-          "getting-started",
-          "datasets",
-          "hpc",
-          "running-evaluations",
-          "metrics-and-models",
-          "maintaining-docs"
+          "quickstart",
+          "overview"
+        ]
+      },
+      {
+        "group": "Metrics",
+        "pages": [
+          "metrics/overview",
+          "metrics/pope",
+          "metrics/rope",
+          "metrics/chair",
+          "metrics/throne",
+          "metrics/why"
+        ]
+      },
+      {
+        "group": "Components",
+        "pages": [
+          "judge",
+          "predict",
+          "models"
         ]
       }
     ]

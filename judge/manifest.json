@@ -1,0 +1,47 @@
+{
+ "hf_repo": null,
+ "revision": null,
+ "files": {
+  "mentions.tsv.gz": "4ac7b61f8ec143ac9c53174df7ed07724ae42d0a042e68620870dbcb56c15218",
+  "rope.tsv.gz": "b1495399c3aeca5c944186488db8339a605b2356d5337ac9352f116e6b1d8e90",
+  "pope_drop_list.tsv": "ef09e2d5d238ef3b4391d961afa23454a5641beaf135006ad93214f54f0e44bb",
+  "committee.json": "39181ca025b468b0a25d86db14b7a64cd49dfb47a3c82fad4e7c6222f35a6056"
+ },
+ "reference": {
+  "final_tables.json": "7a5ebff93a4a75f5e79a0cbcbdf3f08879f04edb5478536a929da733967f1065"
+ },
+ "judge_model": "claude-opus-5-5",
+ "skills": {
+  "mentions": "fcbf47e81228",
+  "rope": "0835e4524094",
+  "pope": "f26120d39383"
+ },
+ "rubrics": {
+  "mentions": "v3.1 (skill v2)",
+  "rope": "v1",
+  "pope": "v1"
+ },
+ "frozen_pool": [
+  "muse-glimmer-30b",
+  "gemma4-12b",
+  "gemma4-e4b",
+  "aya-vision-8b",
+  "ministral3-14b",
+  "ministral3-8b",
+  "qwen2vl-7b",
+  "qwen2vl-2b",
+  "paligemma"
+ ],
+ "env": {
+  "python": "3.12.3",
+  "nltk": "3.9.4",
+  "nltk_data": [
+   "punkt_tab",
+   "averaged_perceptron_tagger_eng",
+   "stopwords",
+   "wordnet 3.0"
+  ],
+  "inflect": "7.5.0",
+  "pillow": "11.3.0"
+ }
+}

@@ -1,0 +1,30 @@
+---
+title: "Quickstart"
+description: "Install Mirage, run one metric and reproduce the results table."
+---
+
+## Install
+
+```bash
+python3.12 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+python -m nltk.downloader punkt_tab averaged_perceptron_tagger_eng stopwords wordnet
+```
+
+Put COCO val2017 in `datasets/coco/` (`val2017/` and `annotations/`) and Visual Genome in `datasets/visual_genome/` (`objects.json` and `VG_100K/`).
+
+## Run one metric
+
+```bash
+python run.py --dataset coco --metric pope --model gemma4-e4b --samples 10 --output results/pope.json
+```
+
+`--metric` is one of `pope`, `rope`, `chair` or `throne`. The JSON holds the raw score, the judged score under `judged.head`, the cache hit count and a `config` block that records how the file was made.
+
+## Reproduce the results table
+
+```bash
+python repro.py --records tests/data/records.json.gz --check
+```
+
+This rescores every stored model answer with the stored judge verdicts and checks all 612 table values. It needs Python 3.12 and the NLTK data above.

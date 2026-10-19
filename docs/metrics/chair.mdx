@@ -1,0 +1,12 @@
+---
+title: "CHAIR"
+description: "Hallucinated objects in captions."
+---
+
+CHAIR finds the object words in a caption and checks each one against the image's labels. CHAIR-I is the share of mentioned objects that are not in the image, so lower is better.
+
+Paper: Rohrbach et al., "Object Hallucination in Image Captioning", EMNLP 2018. [arXiv:1809.02156](https://arxiv.org/abs/1809.02156)
+
+## Modification: Mod-CHAIR
+
+Mod-CHAIR counts nouns only, adds objects the judge saw in the image to the labels, and scores F0.5 of (1 - Mod-CHAIR-I) and coverage, the share of known objects the caption names. The change is needed because raw CHAIR-I rewards captions that name almost nothing and counts unlabelled objects like "sky" as hallucinations.

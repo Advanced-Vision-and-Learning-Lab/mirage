@@ -1,0 +1,12 @@
+---
+title: "POPE"
+description: "Yes or no object questions."
+---
+
+POPE asks the model questions of the form "Is there a {object} in the image?". Half the objects are in the image and half are not, so a model that always says yes scores 50%. Mirage asks 6 questions per image and picks the "no" objects at random.
+
+Paper: Li et al., "Evaluating Object Hallucination in Large Vision-Language Models", EMNLP 2023. [arXiv:2305.10355](https://arxiv.org/abs/2305.10355)
+
+## Modification: Mod-POPE
+
+Mod-POPE removes "no" questions whose object is a junk name, is actually in the image, or cannot be checked from the image, and reports balanced accuracy. On Visual Genome the "no" objects come from free text labels, so 417 of 1,500 "no" questions were wrong or could not be answered.

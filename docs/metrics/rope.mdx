@@ -1,0 +1,12 @@
+---
+title: "ROPE"
+description: "Name the object in a marked box."
+---
+
+ROPE tests whether a model can recognize several objects in one image. Mirage draws 5 numbered boxes on the image, asks the model to name the object in each box, and grades each answer against the dataset's class for that box.
+
+Paper: Chen et al., "Multi-Object Hallucination in Vision Language Models", NeurIPS 2024. [arXiv:2407.06192](https://arxiv.org/abs/2407.06192)
+
+## Modification: Mod-ROPE
+
+Mod-ROPE takes the first noun phrase of the answer and asks the judge if it fairly names an object that fills the box. Most Visual Genome boxes hold more than one object, so a box labelled "road" with a car on it graded the answer "car" as wrong.

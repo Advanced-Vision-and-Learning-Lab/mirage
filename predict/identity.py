@@ -3,8 +3,35 @@
 Cache keys are SHA-256 hashes over a sorted-keys JSON payload of the
 model identity, the input image, the prompt, and the generation config.
 Bump ``CACHE_KEY_VERSION`` whenever model post-processing or key
-semantics change in a way that should invalidate existing cache entries
-(same policy as ``matching.judge.PROMPT_VERSION``).
+semantics change in a way that should invalidate existing cache entries.
+
+Known gaps (documented, not keyed):
+
+1. ``enable_thinking`` and ``thinking_tokens`` (default 1024). Only the identity
+   string "HFChatThinkingVLM" (``Gemma4Thinking.cache_name``) keeps thinking rows
+   apart from the others; never fold thinking into a flag on the same identity.
+2. Muse Glimmer's TEMPLATE_KWARGS (reasoning_strength "low", current_date
+   "2026-10-15"), ANSWER_PREFIX and LANCZOS pre-resize: the image is hashed
+   before model preprocessing.
+3. Revision. A bare HF id is keyed as "unpinned"; published rows are pinned only
+   because MIRAGE_*_MODEL_PATH and MIRAGE_THRONE_EVALUATOR_MODEL (flan-t5-xl
+   snapshot 7d6315df2c2fb742f0f5b556879d730926ca9001) point at snapshot paths.
+   Replays must set them.
+4. transformers, torch, tokenizer and processor versions.
+5. The THRONE evaluator window (max_input_tokens) IS keyed, even when nothing is
+   truncated. The six Visual Genome cells published at 512 (qwen2vl-2b,
+   qwen2vl-7b, gemma4-e4b, ministral3-8b, ministral3-14b, aya-vision-8b; no
+   caption truncated in the scored 500) replay with
+   --throne-evaluator-max-tokens 512: the complement of VG_W1024 in repro.py.
+6. Not keys, but they decide which verdict keys are looked up and which rows
+   join: nltk 3.9.4 and its data (punkt_tab, averaged_perceptron_tagger_eng,
+   stopwords), WordNet 3.0 and inflect 7.5.0 decide the verdict keys; Pillow
+   11.3.0 decides every image hash (JPEG decode, default-font box labels), so
+   an upgrade can silently shrink n_raw.
+7. Python 3.12+ for an exact repro: the reference sums class-wise THRONE P and
+   R over an unsorted set and repro.py over a sorted list, and only 3.12's
+   compensated sum() makes the two agree to the last bit. Never replace that
+   sum with fsum, numpy or another order.
 """
 
 import hashlib

@@ -1,73 +1,43 @@
 ---
 title: "Mirage"
-description: "A modular framework for evaluating object hallucination in vision-language models."
+description: "A vision language model eval framework with modified hallucination metrics."
 ---
 
-Mirage is an evaluation framework for studying object hallucination in vision-language models. It provides shared interfaces for datasets, model inference, prediction caching, and metric scoring so evaluation runs can be inspected and repeated.
+Mirage is an evaluation framework for vision language models. It measures object hallucination with four metrics from the literature: POPE, ROPE, CHAIR and THRONE. Each metric is modified so it still works on datasets with sparse labels, such as Visual Genome.
 
-The runnable entry point, `demo.py`, connects the supported COCO and Visual Genome dataset paths with model wrappers and evaluation metrics. Its prediction cache lets you score saved model outputs again without repeating inference. Each metric keeps its own protocol and assumptions, so results should be interpreted within the metric being used.
+## Results
 
-<CardGroup cols={2}>
-  <Card title="Get started" icon="rocket" href="/getting-started">
-    Install Mirage and run the one-image smoke test.
-  </Card>
-  <Card title="Datasets" icon="database" href="/datasets">
-    Prepare COCO and Visual Genome inputs.
-  </Card>
-  <Card title="Run evaluations" icon="terminal" href="/running-evaluations">
-    Choose a dataset, model, metric, and output path.
-  </Card>
-  <Card title="Metrics and models" icon="chart-column" href="/metrics-and-models">
-    Review available model wrappers and scoring protocols.
-  </Card>
-  <Card title="Run on an HPC cluster" icon="server" href="/hpc">
-    Prepare a GPU job and submit it with SLURM.
-  </Card>
-  <Card title="Maintain the docs" icon="book-open" href="/maintaining-docs">
-    Preview changes and see what the automated checks cover.
-  </Card>
-</CardGroup>
+9 models, scored on the first 500 images of COCO val2017 and Visual Genome. Higher is better in every column. The best score in each column is bold.
 
-## Evaluation data flow
+### COCO
 
-Mirage turns dataset examples into model responses, scores those responses, and writes a result file. The prediction cache avoids repeating model inference when the same inputs are evaluated again.
+| Model | Mod-POPE | Mod-ROPE | Mod-CHAIR F0.5 | THRONE F0.5 |
+|---|---:|---:|---:|---:|
+| Muse-Glimmer-30B | 91.8 | 70.0 | **89.2** | 82.5 |
+| Gemma-4-12B | 92.5 | **74.8** | 84.2 | 79.0 |
+| Gemma-4-E4B | 93.6 | 57.7 | 83.2 | 78.0 |
+| Aya-Vision-8B | **95.4** | 59.2 | 84.2 | 78.8 |
+| Ministral-3-14B | 86.5 | 36.3 | 82.9 | 78.2 |
+| Ministral-3-8B | 86.4 | 26.6 | 82.0 | 78.6 |
+| Qwen2-VL-7B | 93.0 | 38.1 | 85.1 | 82.1 |
+| Qwen2-VL-2B | 93.0 | 10.7 | 84.8 | **82.9** |
+| PaliGemma-3B | 93.9 | 41.4 | 81.7 | 78.7 |
 
-<Steps>
-  <Step title="Load COCO or Visual Genome examples">
-    The dataset loader reads the image files and annotations, then provides each image with its ground-truth objects and any metric-specific data.
-  </Step>
-  <Step title="Get a model response">
-    The predictor checks the response cache using the model and request inputs. On a cache hit, Mirage reuses the saved response. On a miss, the selected model wrapper runs inference and the predictor saves its response in the cache.
-  </Step>
-  <Step title="Score responses with a metric">
-    The selected metric compares model responses with the ground truth and applies its own evaluation protocol. You can run a different metric against cached responses without running the model again.
-  </Step>
-  <Step title="Write the evaluation result">
-    The demo writes the scores and run details to the requested JSON output path.
-  </Step>
-</Steps>
+### Visual Genome
 
-## Reference model results
+| Model | Mod-POPE | Mod-ROPE | Mod-CHAIR F0.5 | THRONE F0.5 |
+|---|---:|---:|---:|---:|
+| Muse-Glimmer-30B | 90.6 | 64.4 | **79.6** | **73.9** |
+| Gemma-4-12B | **93.0** | **65.5** | 70.5 | 71.4 |
+| Gemma-4-E4B | 92.0 | 48.9 | 63.8 | 68.9 |
+| Aya-Vision-8B | 90.8 | 46.2 | 73.8 | 71.7 |
+| Ministral-3-14B | 85.5 | 35.8 | 69.3 | 69.1 |
+| Ministral-3-8B | 86.6 | 24.7 | 70.8 | 68.5 |
+| Qwen2-VL-7B | 91.9 | 50.6 | 43.6 | 65.9 |
+| Qwen2-VL-2B | 91.0 | 43.8 | 49.8 | 68.7 |
+| PaliGemma-3B | 90.9 | 27.0 | 50.0 | 63.0 |
 
-These reference results compare three model configurations across COCO and Visual Genome. Values are percentages from 1,000 images per model and dataset. Higher is better for POPE accuracy, ROPE strict accuracy, and THRONE F1. Lower is better for CHAIR-I hallucination rate. The tables use Mintlify's native tabs and tables so the values remain readable on every screen size.
-
-<Tabs>
-<Tab title="COCO">
-
-| Model | POPE accuracy ↑ | ROPE strict accuracy ↑ | CHAIR-I hallucination rate ↓ | THRONE F1 ↑ |
-| --- | ---: | ---: | ---: | ---: |
-| PaliGemma-3B | 94.2% | 21.6% | 9.1% | 72.9% |
-| Qwen2-VL-2B | 93.6% | 3.6% | 12.8% | 73.4% |
-| Qwen2-VL-7B | 93.5% | 13.1% | 12.7% | 72.9% |
-</Tab>
-<Tab title="Visual Genome">
-
-| Model | POPE accuracy ↑ | ROPE strict accuracy ↑ | CHAIR-I hallucination rate ↓ | THRONE F1 ↑ |
-| --- | ---: | ---: | ---: | ---: |
-| PaliGemma-3B | 88.0% | 8.2% | 67.8% | 21.5% |
-| Qwen2-VL-2B | 88.7% | 8.6% | 75.6% | 24.0% |
-| Qwen2-VL-7B | 89.5% | 10.3% | 69.3% | 23.6% |
-</Tab>
-</Tabs>
-
-ROPE strict accuracy requires an exact label match. THRONE F1 is normalized to 38 distractor categories per ground-truth object. Metrics measure different behaviors and should be compared within each metric, not combined into a single model ranking. The source values are in the [model results CSV](https://github.com/Advanced-Vision-and-Learning-Lab/mirage/blob/main/docs/model-results.csv). A new model belongs in these tables only after its results have been measured and reviewed.
+Notes:
+- The judge verdicts behind Mod-POPE, Mod-ROPE and Mod-CHAIR were checked against human labels, see [Judge](/judge).
+- Qwen2-VL-2B answers COCO ROPE boxes with coordinates, so its COCO Mod-ROPE is low.
+- The raw paper scores and the reasons for each change are on [Why the metrics are modified](/metrics/why).

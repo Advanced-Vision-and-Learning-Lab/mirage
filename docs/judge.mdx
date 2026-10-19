@@ -1,0 +1,32 @@
+---
+title: "Judge"
+description: "How the judge grades answers, and how it agrees with human labels."
+---
+
+The judge is a stronger vision language model that looks at the image and grades what a model said. Today it is a wrapper around the Claude Code CLI, and other agents or direct API calls may be added later. Each batch of up to 10 images runs in a fresh `claude -p` session, with the model pinned in `judge/manifest.json` and one instruction file per task in `judge/.claude/skills/`. It grades caption mentions (present, absent, not an object, unsure), ROPE answers (correct, related, wrong, unsure) and POPE "no" questions (present, absent, unsure). Scoring reads stored verdicts from `judgments/` and never calls the judge, except `run.py --live-judge`, which grades new caption mentions that have no verdict yet (ROPE has no live path).
+
+## Committee
+
+The committee is the 9 models in the results table, and their verdicts are frozen. The objects the judge confirmed in their captions form the coverage pool for Mod-CHAIR and the completed labels for Visual Genome THRONE. A new model is scored against the committee plus its own verdicts and never changes the committee's rows, so the published numbers stay fixed.
+
+## Use the published verdicts
+
+The verdicts, the committee and the final table are in `judgments/` in the repo, checked against the sha256 hashes in `judge/manifest.json`. Use them to score the 9 models, or to score a new model against the same committee, without running a judge yourself.
+
+## Use your own judge
+
+A judge only has to return the same verdict labels. Pass any object with the same interface as `judge.Judge` (its call and `committee`) to `run.main(judge=...)`, or edit the instruction files in `judge/.claude/skills/`. The skill files and the stored verdicts are checked against the hashes in `judge/manifest.json`, so any change needs a new manifest.
+
+## Agreement with human labels
+
+A human annotator labelled a sample of judge items in the review page below. Recall and precision are for the positive class: a hallucinated caption mention, a wrong ROPE answer, or a POPE "no" question that should be removed.
+
+| Judge | Labelled items | Positives | Recall | Precision | Run to run agreement |
+|---|---:|---:|---:|---:|---:|
+| Caption mentions | 175 | 23 | 87% (20/23) | 77% (20/26) | 97.2% |
+| ROPE answers | 94 | 47 | 83% (39/47) | 98% (39/40) | 90.1% |
+| POPE "no" questions | 100 | 24 | 88% (21/24) | 49% (21/43) | 94.0% |
+
+The samples are small, and the caption and POPE instructions were revised after seeing these labels.
+
+![The review page used to label judge items](/images/judge-review.jpg)

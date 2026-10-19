@@ -2,16 +2,14 @@
 Abstract base class for all models in the Mirage package.
 
 This module defines the interface that all models must implement to ensure
-consistent behavior across different model types, whether they are API-based
-or locally hosted models.
+consistent behavior across different model types.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Union, Tuple, Literal
+from typing import Any, ClassVar, Dict, Optional, Union
 from pathlib import Path
 from PIL import Image
 import logging
-import torch
 
 
 class BaseModel(ABC):
@@ -20,35 +18,23 @@ class BaseModel(ABC):
 
     This class defines the essential interface that all models must implement
     to provide consistent model inference capabilities across different model
-    architectures and deployment strategies (local vs API).
-
-    The base class handles common functionality like:
-    - Model metadata and configuration management
-    - Input validation and preprocessing coordination
-    - Output standardization
-    - Error handling and logging
-    - Resource management abstractions
+    architectures.
 
     Attributes:
         model_name (str): Name or identifier of the model
-        model_type (str): Type of model ('local' or 'api')
         config (Dict[str, Any]): Model configuration parameters
         is_loaded (bool): Whether the model is currently loaded and ready
-        supports_images (bool): Whether the model can process images
-        supports_text (bool): Whether the model can process text
-        max_tokens (Optional[int]): Maximum tokens the model can handle
-        quantization (Optional[str]): Quantization method ('int4', 'int8', 'none')
-        use_true_batching (bool): Whether to use true batch processing
         _logger (logging.Logger): Logger instance for the model
     """
+
+    # Model name in every prediction cache key. Pinned per family so moving or
+    # renaming a class never changes keys; None falls back to the class name.
+    cache_name: ClassVar[Optional[str]] = None
 
     def __init__(
         self,
         model_name: str,
-        model_type: str = "local",
         config: Optional[Dict[str, Any]] = None,
-        quantization: Optional[Literal["int4", "int8", "none"]] = None,
-        use_true_batching: bool = False,
         **kwargs
     ):
         """
@@ -56,30 +42,15 @@ class BaseModel(ABC):
 
         Args:
             model_name: Name or path of the model (e.g., 'google/paligemma-3b-pt-224')
-            model_type: Type of model deployment ('local' or 'api')
             config: Dictionary containing model-specific configuration
-            quantization: Quantization method to use ('int4', 'int8', or 'none' for full precision)
-            use_true_batching: Whether to use true batch processing (default: False for sequential)
             **kwargs: Additional keyword arguments for model initialization
         """
         self.model_name = model_name
-        self.model_type = model_type.lower()
         self.config = config or {}
         self.is_loaded = False
-        self.quantization = quantization
-        self.use_true_batching = use_true_batching
-
-        # Model capabilities - to be set by subclasses
-        self.supports_images = False
-        self.supports_text = True
-        self.max_tokens = None
 
         # Initialize logger
         self._logger = logging.getLogger(f"{self.__class__.__name__}_{model_name}")
-
-        # Validate model type
-        if self.model_type not in ['local', 'api']:
-            raise ValueError(f"model_type must be 'local' or 'api', got '{model_type}'")
 
     @abstractmethod
     def load_model(self) -> None:
@@ -88,10 +59,10 @@ class BaseModel(ABC):
 
         This method should handle all necessary steps to prepare the model
         for inference, including:
-        - Loading model weights/connecting to API
+        - Loading model weights
         - Initializing tokenizers/processors
         - Setting up any required configurations
-        - Allocating GPU memory (for local models)
+        - Allocating GPU memory
 
         The method should set self.is_loaded = True upon successful completion.
 
@@ -107,8 +78,7 @@ class BaseModel(ABC):
         Unload the model and free resources.
 
         This method should handle cleanup and resource deallocation:
-        - Clearing GPU memory (for local models)
-        - Closing API connections
+        - Clearing GPU memory
         - Resetting internal state
 
         The method should set self.is_loaded = False upon completion.
@@ -129,7 +99,7 @@ class BaseModel(ABC):
         Generate a response from the model.
 
         This is the main inference method that should handle both text-only
-        and multimodal (text + image) inputs depending on model capabilities.
+        and multimodal (text + image) inputs.
 
         Args:
             prompt: Text prompt/question for the model
@@ -142,76 +112,8 @@ class BaseModel(ABC):
         Raises:
             NotImplementedError: If not implemented by subclass
             ModelNotLoadedError: If model is not loaded
-            InvalidInputError: If inputs are invalid for this model
         """
         pass
-
-    @abstractmethod
-    def batch_generate(
-        self,
-        prompts: List[str],
-        images: Optional[List[Union[Image.Image, str, Path, None]]] = None,
-        **kwargs
-    ) -> List[Optional[str]]:
-        """
-        Generate responses for a batch of inputs.
-
-        This method should efficiently process multiple inputs, potentially
-        using batching optimizations for local models or parallel API calls.
-
-        Args:
-            prompts: List of text prompts
-            images: Optional list of images (can contain None for text-only prompts)
-            **kwargs: Additional generation parameters
-
-        Returns:
-            List[Optional[str]]: One entry per prompt; None where generation
-                failed, so callers can exclude it instead of scoring it.
-
-        Raises:
-            NotImplementedError: If not implemented by subclass
-            ModelNotLoadedError: If model is not loaded
-            InvalidInputError: If inputs are invalid
-        """
-        pass
-
-    def validate_input(
-        self,
-        prompt: str,
-        image: Optional[Union[Image.Image, str, Path]] = None
-    ) -> Tuple[bool, Optional[str]]:
-        """
-        Validate input before generation.
-
-        This method performs common validation checks that apply to all models:
-        - Prompt is not empty
-        - Image is provided only if model supports images
-        - Text-only input is provided if model requires it
-
-        Args:
-            prompt: Text prompt to validate
-            image: Optional image input to validate
-
-        Returns:
-            Tuple[bool, Optional[str]]: (is_valid, error_message)
-        """
-        # Check if model is loaded
-        if not self.is_loaded:
-            return False, "Model is not loaded. Call load_model() first."
-
-        # Check prompt
-        if not prompt or not prompt.strip():
-            return False, "Prompt cannot be empty."
-
-        # Check image support
-        if image is not None and not self.supports_images:
-            return False, f"Model {self.model_name} does not support image inputs."
-
-        # Check text support (should always be true, but included for completeness)
-        if not self.supports_text:
-            return False, f"Model {self.model_name} does not support text inputs."
-
-        return True, None
 
     def preprocess_image(self, image: Union[Image.Image, str, Path]) -> Image.Image:
         """
@@ -249,172 +151,10 @@ class BaseModel(ABC):
 
         return image
 
-    def get_model_info(self) -> Dict[str, Any]:
-        """
-        Get comprehensive information about the model.
-
-        Returns:
-            Dict containing model metadata and current state
-        """
-        return {
-            'model_name': self.model_name,
-            'model_type': self.model_type,
-            'is_loaded': self.is_loaded,
-            'supports_images': self.supports_images,
-            'supports_text': self.supports_text,
-            'max_tokens': self.max_tokens,
-            'config': self.config.copy(),
-            'class_name': self.__class__.__name__
-        }
-
-    def update_config(self, **kwargs) -> None:
-        """
-        Update model configuration.
-
-        Args:
-            **kwargs: Configuration parameters to update
-        """
-        self.config.update(kwargs)
-        self._logger.info(f"Updated config: {kwargs}")
-
-    def __enter__(self):
-        """Context manager entry - load model if not already loaded."""
-        if not self.is_loaded:
-            self.load_model()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit - unload model."""
-        if self.is_loaded:
-            self.unload_model()
-
     def __repr__(self) -> str:
         """String representation of the model."""
         status = "loaded" if self.is_loaded else "not loaded"
         return f"{self.__class__.__name__}(model_name='{self.model_name}', status='{status}')"
-
-    def get_quantization_config(self, quantization_backend: str = "torchao") -> Optional[Any]:
-        """
-        Get the quantization configuration object based on the quantization setting.
-
-        This method creates the appropriate quantization configuration for use with
-        HuggingFace transformers models. Requires explicit specification of backend.
-
-        Args:
-            quantization_backend: Which backend to use ('torchao' or 'bitsandbytes')
-
-        Returns:
-            Quantization config object (TorchAoConfig or BitsAndBytesConfig) or None
-
-        Raises:
-            ImportError: If required quantization libraries are not installed
-            ValueError: If unsupported quantization method or backend is specified
-        """
-        if self.quantization is None or self.quantization == "none":
-            return None
-
-        if quantization_backend not in ["torchao", "bitsandbytes"]:
-            raise ValueError(
-                f"Unsupported quantization backend: {quantization_backend}. "
-                f"Supported backends: 'torchao', 'bitsandbytes'"
-            )
-
-        if quantization_backend == "torchao":
-            if self.quantization == "int4":
-                try:
-                    from transformers import TorchAoConfig
-                    self._logger.info("Using TorchAO int4_weight_only quantization")
-                    return TorchAoConfig("int4_weight_only", group_size=128)
-                except ImportError:
-                    raise ImportError(
-                        "TorchAO not available for int4 quantization. "
-                        "Install with: pip install torchao"
-                    )
-            else:
-                raise ValueError(
-                    f"TorchAO backend only supports int4 quantization, got: {self.quantization}"
-                )
-
-        elif quantization_backend == "bitsandbytes":
-            if self.quantization == "int4":
-                try:
-                    from transformers import BitsAndBytesConfig
-                    self._logger.info("Using BitsAndBytes 4-bit quantization")
-                    return BitsAndBytesConfig(
-                        load_in_4bit=True,
-                        bnb_4bit_compute_dtype=torch.bfloat16,
-                        bnb_4bit_quant_type="nf4",
-                        bnb_4bit_use_double_quant=True
-                    )
-                except ImportError:
-                    raise ImportError(
-                        "BitsAndBytes not available for 4-bit quantization. "
-                        "Install with: pip install bitsandbytes"
-                    )
-            elif self.quantization == "int8":
-                try:
-                    from transformers import BitsAndBytesConfig
-                    self._logger.info("Using BitsAndBytes 8-bit quantization")
-                    return BitsAndBytesConfig(
-                        load_in_8bit=True,
-                        llm_int8_threshold=6.0
-                    )
-                except ImportError:
-                    raise ImportError(
-                        "BitsAndBytes not available for 8-bit quantization. "
-                        "Install with: pip install bitsandbytes"
-                    )
-            else:
-                raise ValueError(
-                    f"BitsAndBytes backend only supports int4/int8, got: {self.quantization}"
-                )
-
-    def batch_inputs(
-        self,
-        prompts: List[str],
-        images: Optional[List[Union[Image.Image, str, Path, None]]] = None,
-        batch_size: Optional[int] = None
-    ) -> List[Tuple[List[str], Optional[List[Union[Image.Image, str, Path, None]]]]]:
-        """
-        Split inputs into batches for processing.
-
-        Utility method to help subclasses implement batch processing. Groups prompts
-        and images into batches of specified size.
-
-        Args:
-            prompts: List of text prompts
-            images: Optional list of images (same length as prompts or None)
-            batch_size: Number of items per batch (None = process all at once)
-
-        Returns:
-            List of tuples, each containing (batch_prompts, batch_images)
-
-        Example:
-            >>> batches = self.batch_inputs(prompts, images, batch_size=4)
-            >>> for batch_prompts, batch_images in batches:
-            >>>     # Process batch
-            >>>     results = self._process_batch(batch_prompts, batch_images)
-        """
-        if images is None:
-            images = [None] * len(prompts)
-
-        if len(prompts) != len(images):
-            raise ValueError(
-                f"Length mismatch: {len(prompts)} prompts but {len(images)} images"
-            )
-
-        # If no batch size specified, return everything as one batch
-        if batch_size is None:
-            return [(prompts, images)]
-
-        # Split into batches
-        batches = []
-        for i in range(0, len(prompts), batch_size):
-            batch_prompts = prompts[i:i + batch_size]
-            batch_images = images[i:i + batch_size]
-            batches.append((batch_prompts, batch_images))
-
-        return batches
 
 
 class ModelError(Exception):
@@ -429,9 +169,4 @@ class ModelLoadError(ModelError):
 
 class ModelNotLoadedError(ModelError):
     """Exception raised when trying to use an unloaded model."""
-    pass
-
-
-class InvalidInputError(ModelError):
-    """Exception raised when model inputs are invalid."""
     pass

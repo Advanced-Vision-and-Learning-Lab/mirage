@@ -13,7 +13,7 @@ import os
 import sqlite3
 import zlib
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ class SQLiteResponseCache:
                                self.db_path)
                 self._conn = None
                 return
-            self._conn = sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True)
+            self._conn = sqlite3.connect(self.db_path.resolve().as_uri() + "?mode=ro", uri=True)
             self._conn.execute("PRAGMA busy_timeout=30000")
             return
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -129,24 +129,12 @@ class SQLiteResponseCache:
             logger.warning("cache read failed, treating as miss: %s", exc)
             return None
 
-    def get_many(self, keys: Iterable[str]) -> Dict[str, str]:
-        """Return ``{key: response}`` for every cached key in ``keys``."""
+    def rows(self) -> Iterator[Tuple[str, Optional[str], str]]:
+        """Yield ``(prompt, image_hash, response)`` for every stored row (offline rescoring)."""
         if self._conn is None:
-            return {}
-        keys = list(keys)
-        found: Dict[str, str] = {}
-        try:
-            for i in range(0, len(keys), 500):
-                chunk = keys[i:i + 500]
-                marks = ",".join("?" * len(chunk))
-                rows = self._conn.execute(
-                    f"SELECT key, response FROM predictions WHERE key IN ({marks})", chunk
-                ).fetchall()
-                found.update({k: zlib.decompress(blob).decode("utf-8") for k, blob in rows})
-        except (sqlite3.Error, zlib.error, UnicodeDecodeError) as exc:
-            logger.warning("cache read failed, treating as miss: %s", exc)
-            return {}
-        return found
+            return
+        for prompt, image_hash, blob in self._conn.execute("SELECT prompt, image_hash, response FROM predictions"):
+            yield prompt, image_hash, zlib.decompress(blob).decode("utf-8")
 
     def put(self, key: str, response: str, *, meta: Dict[str, Any]) -> None:
         """Insert one response; existing rows for the same key are kept as-is.

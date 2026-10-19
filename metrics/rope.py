@@ -5,10 +5,10 @@ Adapted from the sled-group/moh repository:
   https://github.com/sled-group/moh
 
 ROPE evaluates multi-object hallucination in Vision-Language Models by drawing
-red bounding boxes around N objects in an image and asking the model to identify
-all N objects in a single prompt. This contrasts with POPE's binary yes/no
-questioning and tests whether VLMs can correctly ground and classify multiple
-objects simultaneously.
+red bounding boxes around N objects in an image and asking the model to name
+the object in each numbered box, one question per box. This contrasts with
+POPE's binary yes/no questioning and tests whether VLMs can correctly ground
+and classify multiple objects in the same image.
 
 Reference:
     Zou et al., "Look, Compare, Decide: Alleviating Hallucination in Large
@@ -18,30 +18,75 @@ Reference:
 
 import re
 import logging
+from collections import Counter
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Tuple
+from types import MappingProxyType
+from typing import Any, Dict, Iterable, List, Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 
-from .base_metric import BaseMetric
-
-# Matchers live in the top-level ``matching`` package (torch-free) so offline
-# rescoring can import them without pulling in metrics/__init__ (torch). Ensure
-# the repo root is importable regardless of the current working directory.
-import os as _os
-import sys as _sys
-_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
-if _ROOT not in _sys.path:
-    _sys.path.insert(0, _ROOT)
-from matching.exact import ExactMatcher, SubstringMatcher  # noqa: E402
-from matching.base import KEY_FOR, PER_POS_KEY_FOR  # noqa: E402
+from .base_metric import SAMPLES, BaseMetric, MissingVerdicts, dataset_key
 
 logger = logging.getLogger(__name__)
 
-# Shared singletons; the module-level helpers delegate so behavior is identical
-# to the previous inline implementations (no-regression on lenient/strict).
-_SUBSTRING = SubstringMatcher()
-_EXACT = ExactMatcher()
+
+# parse_single_response normalizes answer formatting before exact matching:
+# markdown marks, a leading header or list marker, and surrounding quotes.
+_MARKUP_RE = re.compile(r"[*`]+")
+_LINE_PREFIX_RE = re.compile(r"^(?:#+\s*|[-\u2022]\s+|\d+[.)]\s+)")
+_QUOTES = "\"'\u2018\u2019\u201c\u201d"
+# "... is a/an/the X", "... appears to be (a) X", "... is pointing to (the) X";
+# not an echoed question ("I am not sure what is the object inside box 1").
+_ANSWER_RE = re.compile(
+    r"\b(?<!what )(?:(?:is|appears\s+to\s+be|seems\s+to\s+be)\s+(?:pointing\s+to\s+)?(?:an?|the)"
+    r"|appears\s+to\s+be|seems\s+to\s+be|is\s+pointing\s+to)\s+(.+?)(?:[.,;:(]|$)"
+)
+
+
+# Judged ROPE: the answer key the judge graded. A first noun phrase, not the
+# strict extractor above; changing it orphans the stored verdicts.
+_JUDGE_QUANT = (r"(?:a\s+|an\s+|the\s+)?(?:small\s+|large\s+)?(?:piece|pieces|slice|slices|part|parts|pair|pairs|"
+                r"group|groups|stack|stacks|section|set|bunch|collection|pile|row|rows|cluster|portion|close-up|"
+                r"closeup|corner|edge|side|top|bottom|view|image|picture|photo)\s+of\s+(?:the\s+|a\s+|an\s+|some\s+)?")
+_JUDGE_LEAD = re.compile(r"(?:box\s*\d+\s*(?:contains|shows|has)?|is|appears\s+to\s+be|seems\s+to\s+be|looks\s+like|"
+                         r"is\s+likely|is\s+pointing\s+to)\s+(?:an?\s+|the\s+|some\s+)?(.+)")
+_JUDGE_ARTICLES = {"a", "an", "the", "some", "two", "three", "several"}
+
+
+def _judge_norm(name: str) -> str:
+    from .chair import _singularize
+
+    toks = re.findall(r"[a-z]+", name.lower())
+    while toks and toks[0] in _JUDGE_ARTICLES:
+        toks = toks[1:]
+    if not toks:
+        return ""
+    toks[-1] = _singularize(toks[-1])
+    return " ".join(toks)
+
+
+def judged_answer(response: str, pred: str) -> str:
+    """Answer key for a judged ROPE verdict: the first noun run of the first
+    alternative ("X or Y" -> X) after lead-ins and partitives are removed,
+    normalized; ``pred`` (the strict extraction) when no noun is found."""
+    import nltk
+
+    line = re.sub(r"[*_`#>\"“”]", "", response.strip()[:400].strip().split("\n")[0].lower()).strip()
+    m = next(_JUDGE_LEAD.finditer(line), None)
+    text = re.split(r"[.;:(—]|\s-\s", m.group(1) if m else line)[0]
+    alts = []
+    for a in re.split(r"\s+or\s+|,\s*|\s+and\s+", text):
+        a = re.sub("^" + _JUDGE_QUANT, "", a.strip())
+        a = re.sub(r"\s+(?:of|on|in|at|with|that|which|for|from|near|behind|under)\b.*$", "", a)
+        noun = []
+        for w, t in (nltk.pos_tag(nltk.word_tokenize(a)) if a else []):
+            if t.startswith("NN"):
+                noun.append(w)
+            elif noun:
+                break
+        if noun:
+            alts.append(" ".join(noun))
+    return _judge_norm((alts or [pred])[0]) or pred
 
 
 def _rects_overlap(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -> bool:
@@ -49,60 +94,40 @@ def _rects_overlap(a: Tuple[int, int, int, int], b: Tuple[int, int, int, int]) -
     return not (a[2] <= b[0] or b[2] <= a[0] or a[3] <= b[1] or b[3] <= a[1])
 
 
-def _rope_match(pred: str, truth: str) -> bool:
-    """Lenient ROPE class-name match (delegates to matching.SubstringMatcher).
-
-    Counts a prediction as correct if the ground-truth class appears as a
-    whole-word substring of the prediction (or vice versa).
-    """
-    return _SUBSTRING.match(pred, truth)
-
-
-def _rope_match_strict(pred: str, truth: str) -> bool:
-    """Strict ROPE class-name match (delegates to matching.ExactMatcher)."""
-    return _EXACT.match(pred, truth)
-
-
 class ROPEMetric(BaseMetric):
     """
     Recognition-based Object Probing Evaluation (ROPE) metric.
 
     Presents the model with an image annotated with red bounding boxes and asks
-    it to classify each boxed object from a provided class list in one prompt.
-    Tracks per-position and overall classification accuracy.
+    it to name the object in each box, one question per box. Tracks
+    per-position and overall exact-match accuracy (plain ROPE).
 
     Adapted from: https://github.com/sled-group/moh
     """
 
+    POOL = MappingProxyType({"coco": 3000, "vg": 2000})
+    GEN = MappingProxyType({"max_new_tokens": 30, "do_sample": False})
+
     def __init__(
         self,
         num_objects: int = 5,
-        class_list: Optional[List[str]] = None,
         bbox_color: str = "red",
         bbox_width: int = 3,
-        matchers: Optional[List[Any]] = None,
     ):
         """
         Initialize the ROPE metric.
 
         Args:
             num_objects: Number of bounding boxes / objects per image.
-            class_list: List of possible class names to identify from.
             bbox_color: Color of drawn bounding boxes (default red).
             bbox_width: Line width for bounding box outlines.
-            matchers: Optional list of matching.Matcher objects. Defaults to
-                [SubstringMatcher (lenient), ExactMatcher (strict)] which
-                reproduces the committed headline keys exactly. Add a
-                SynonymMatcher to also emit ``overall_accuracy_synonym``.
         """
         super().__init__("rope")
         self.num_objects = num_objects
-        self.class_list = class_list or []
         self.bbox_color = bbox_color
         self.bbox_width = bbox_width
-        self.matchers = matchers or [SubstringMatcher(), ExactMatcher()]
 
-        # Accumulated state across evaluate() calls
+        # Accumulated state across evaluate_predictions() calls
         self._all_predictions: List[List[str]] = []
         self._all_ground_truth: List[List[str]] = []
 
@@ -114,8 +139,8 @@ class ROPEMetric(BaseMetric):
         """
         Draw numbered red bounding boxes on a copy of the image.
 
-        Each box is labeled with its 1-based index (1, 2, 3, ...) so the model
-        can match the visual box number to the obj1/obj2/... output format.
+        Each box is labeled with its 1-based index (1, 2, 3, ...), matching
+        the "box i" in the per-box prompts.
 
         Adapted from bbox rendering logic in sled-group/moh evaluation pipeline.
 
@@ -239,99 +264,26 @@ class ROPEMetric(BaseMetric):
                 return lx, ly
         return fallback
 
-    def generate_prompt_for_box(
-        self,
-        box_index: int,
-        class_list: Optional[List[str]] = None,
-    ) -> str:
+    def generate_prompt_for_box(self, box_index: int) -> str:
         """
-        Generate a single-box identification prompt for PaliGemma with few-shot examples.
-
-        Keeps the prompt short and direct. PaliGemma performs better with a
-        simple, focused question than with long class lists or few-shot examples
-        that can anchor completions to the example answers.
+        The single-box ROPE question; its bytes are part of the cache key.
 
         Args:
             box_index: 1-based index of the bounding box to ask about.
-            class_list: Unused (kept for API compatibility).
 
         Returns:
             Prompt string for a single box.
         """
         return f"What is the object inside box {box_index}?"
 
-    def generate_prompt(
-        self,
-        class_list: Optional[List[str]] = None,
-        num_objects: Optional[int] = None,
-    ) -> str:
-        """
-        Generate the multi-box ROPE prompt (kept for reference / non-PaliGemma models).
-
-        For PaliGemma use generate_prompt_for_box() instead, which queries
-        one box at a time to match PaliGemma's pretrained completion style.
-
-        Prompt template adapted from sled-group/moh evaluation.py.
-
-        Args:
-            class_list: Class names the model must choose from.
-            num_objects: Number of bounding boxes in the image.
-
-        Returns:
-            Formatted prompt string.
-        """
-        classes = class_list if class_list is not None else self.class_list
-        n = num_objects if num_objects is not None else self.num_objects
-
-        classes_str = ", ".join(sorted(classes))
-        obj_format = ", ".join(f"obj{i+1}: <class>" for i in range(n))
-
-        return (
-            f"There are {n} numbered red bounding boxes in this image, labeled 1 through {n}. "
-            f"Choose the class of each numbered object from this list: {classes_str}. "
-            f"Respond using ONLY this exact format with no extra words: {obj_format}."
-        )
-
-    def parse_response(
-        self,
-        response: str,
-        num_objects: Optional[int] = None,
-    ) -> List[str]:
-        """
-        Parse a multi-box model response into per-position class predictions.
-
-        Expects the format: 'obj1: class1, obj2: class2, ...'
-        Returns a list of length num_objects. Positions that cannot be parsed
-        are filled with an empty string.
-
-        For single-box responses (from generate_prompt_for_box), use
-        parse_single_response() instead.
-
-        Args:
-            response: Raw model output string.
-            num_objects: Expected number of objects. Falls back to self.num_objects.
-
-        Returns:
-            List of predicted class names, one per bounding box position.
-        """
-        n = num_objects if num_objects is not None else self.num_objects
-        predictions = [""] * n
-
-        # Match patterns like "obj1: cat" or "obj1:cat"
-        matches = re.findall(r"obj(\d+)\s*:\s*([^,\n]+)", response, re.IGNORECASE)
-        for idx_str, class_name in matches:
-            idx = int(idx_str) - 1  # convert to 0-based
-            if 0 <= idx < n:
-                predictions[idx] = class_name.strip().lower()
-
-        return predictions
-
     def parse_single_response(self, response: str) -> str:
         """
         Parse a single-box model response into a class name.
 
         Handles both terse outputs (PaliGemma: "spoon") and verbose
-        outputs (Qwen: "The object inside box 1 is a wooden cabinet").
+        outputs (Qwen: "The object inside box 1 is a wooden cabinet"), with
+        markdown, quotes, and "appears to be" / "is pointing to" lead-ins
+        removed ("Based on the image, **box 1** is pointing to a **cup**").
 
         Args:
             response: Raw model output string for a single-box query.
@@ -340,14 +292,68 @@ class ROPEMetric(BaseMetric):
             Predicted class name string.
         """
         text = response.strip().lower().split("\n")[0].strip()
-        # Extract the noun phrase after "is a/an" (Qwen-style verbose output).
-        m = re.search(r"\bis\s+an?\s+(.+?)(?:[.,;:]|$)", text)
+        # Formatting only: drop markdown emphasis/code marks and a leading
+        # header or list marker. Matching itself stays exact.
+        text = _LINE_PREFIX_RE.sub("", _MARKUP_RE.sub("", text)).strip()
+        # Extract the noun phrase after echoed boilerplate ("is a/an/the",
+        # "appears to be", "is pointing to"); a parenthetical aside ends it.
+        m = _ANSWER_RE.search(text)
         if m:
             phrase = m.group(1).strip()
             phrase = re.sub(r"\s+(of|on|in|at|with|that|which|for)(\b.*)?$", "", phrase).strip()
+            phrase = phrase.strip(_QUOTES)
             if phrase:
                 return phrase
-        return text.strip(" .,;:()")
+        return text.strip(" .,;:()" + _QUOTES)
+
+    def run(self, loader, model, n: int = SAMPLES) -> List[Tuple[str, int, str, bool]]:
+        """Ask about each numbered box of the first ``n`` images that have enough boxes, then evaluate.
+
+        Each image gets ``num_objects`` boxes drawn on it and one question per
+        box. Read the scores with :meth:`format_results`.
+
+        Returns:
+            ``(item, box, answer_key, strict_correct)`` per box (box is 1-based), the
+            records :meth:`score` takes: ``item`` is ``<dataset>_<image id>`` and
+            ``answer_key`` is :func:`judged_answer`, the key of the stored verdicts.
+        """
+        ds = dataset_key(loader)
+        boxes = loader.extract_bboxes_for_rope(num_objects=self.num_objects)
+        predictions, ground_truth, records = [], [], []
+        for sample in [s for s in loader if str(s["image_id"]) in boxes][:n]:
+            image_boxes = boxes[str(sample["image_id"])]
+            image = self.draw_bounding_boxes(loader.load_image(sample), image_boxes)
+            responses = [model.generate(image=image, prompt=self.generate_prompt_for_box(i),
+                                        **self.GEN) for i in range(1, self.num_objects + 1)]
+            predictions.append([self.parse_single_response(r) for r in responses])
+            ground_truth.append([b["name"] for b in image_boxes])
+            records += [(f"{ds}_{sample['image_id']}", i, judged_answer(r, p), self.strict(p, gt))
+                        for i, (r, p, gt) in enumerate(zip(responses, predictions[-1], ground_truth[-1]), 1)]
+        if not predictions:
+            raise RuntimeError("No images had enough object boxes for ROPE.")
+        self.evaluate_predictions(predictions, ground_truth)
+        return records
+
+    @staticmethod
+    def strict(pred: str, gt: str) -> bool:
+        """Plain ROPE: the parsed answer equals the label, ignoring case and surrounding whitespace."""
+        return pred.strip().lower() == gt.strip().lower()
+
+    @staticmethod
+    def score(records: Iterable[Tuple[str, int, str, bool]], verdicts: Dict[Tuple[str, str], str]) -> Dict[str, float]:
+        """ROPE on ``(item, box, answer_key, strict_correct)``: strict accuracy and the judged
+        share of fair names (correct / graded; unsure excluded, related reported apart)."""
+        records = list(records)
+        missing = [(item, f"{box}|{ans}") for item, box, ans, _ in records if (item, f"{box}|{ans}") not in verdicts]
+        if missing:
+            raise MissingVerdicts("ROPE", missing)
+        k = Counter(verdicts[(item, f"{box}|{ans}")] for item, box, ans, _ in records)
+        boxes, graded = len(records), k["correct"] + k["related"] + k["wrong"]
+        correct = k["correct"] / graded if graded else 0.0
+        return {"raw": sum(strict for *_, strict in records) / boxes if boxes else 0.0, "head": correct,
+                "related": (k["correct"] + k["related"]) / graded - correct if graded else 0.0,
+                "correct_incl_unsure_as_wrong": correct * (boxes - k["unsure"]) / boxes if boxes else 0.0,
+                "n_raw": boxes, "n_head": boxes - k["unsure"]}
 
     def evaluate_predictions(
         self,
@@ -356,11 +362,7 @@ class ROPEMetric(BaseMetric):
         **kwargs,
     ) -> Dict[str, float]:
         """
-        Evaluate pre-parsed predictions against ground truth.
-
-        Use this when querying boxes one at a time (generate_prompt_for_box +
-        parse_single_response), where you already have a list of predicted class
-        names and don't need to re-parse a raw model string.
+        Score parsed answers (from parse_single_response) against ground truth with :meth:`strict`.
 
         Args:
             predictions: List of predicted class name lists, one per image.
@@ -368,7 +370,7 @@ class ROPEMetric(BaseMetric):
             ground_truth: List of ground truth class name lists, one per image.
 
         Returns:
-            Dict with 'overall_accuracy' and per-position accuracies.
+            Dict with 'overall_accuracy_strict' for this batch.
         """
         self._all_predictions.extend(predictions)
         self._all_ground_truth.extend(ground_truth)
@@ -378,171 +380,49 @@ class ROPEMetric(BaseMetric):
             for preds, truths in zip(predictions, ground_truth)
             for p, t in zip(preds, truths)
         ]
-        correct = sum(_rope_match(p, t) for p, t in pairs)
-        correct_strict = sum(_rope_match_strict(p, t) for p, t in pairs)
+        correct_strict = sum(self.strict(p, t) for p, t in pairs)
         total = sum(len(p) for p in predictions)
-        accuracy = correct / total if total > 0 else 0.0
-        accuracy_strict = correct_strict / total if total > 0 else 0.0
-        self.results = {
-            "overall_accuracy": accuracy,
-            "overall_accuracy_strict": accuracy_strict,
-        }
-        return self.results
-
-    def evaluate(
-        self,
-        model_outputs: List[str],
-        ground_truth: List[List[str]],
-        **kwargs,
-    ) -> Dict[str, float]:
-        """
-        Evaluate a batch of model responses against ground truth class lists.
-
-        Parses each response string from the multi-box format (obj1: x, obj2: y, ...).
-        For single-box querying use evaluate_predictions() instead.
-
-        Args:
-            model_outputs: List of raw model response strings, one per image.
-            ground_truth: List of ground truth class name lists, one per image.
-                          Each inner list has length num_objects.
-
-        Returns:
-            Dict with 'overall_accuracy' and per-position accuracies.
-        """
-        batch_predictions = [self.parse_response(r) for r in model_outputs]
-
-        self._all_predictions.extend(batch_predictions)
-        self._all_ground_truth.extend(ground_truth)
-
-        # Compute batch-level accuracy (lenient headline + strict alongside)
-        correct = 0
-        correct_strict = 0
-        total = 0
-        for preds, truths in zip(batch_predictions, ground_truth):
-            for p, t in zip(preds, truths):
-                if _rope_match(p, t):
-                    correct += 1
-                if _rope_match_strict(p, t):
-                    correct_strict += 1
-                total += 1
-
-        accuracy = correct / total if total > 0 else 0.0
-        accuracy_strict = correct_strict / total if total > 0 else 0.0
-        self.results = {
-            "overall_accuracy": accuracy,
-            "overall_accuracy_strict": accuracy_strict,
-        }
+        self.results = {"overall_accuracy_strict": correct_strict / total if total > 0 else 0.0}
         return self.results
 
     def format_results(self) -> Dict[str, Any]:
         """
-        Compute and return comprehensive ROPE evaluation results.
+        Compute and return the plain ROPE results over every evaluated image.
 
         Returns:
             Dict containing:
-                - overall_accuracy: Accuracy across all positions and images.
-                - per_position_accuracy: Dict mapping 'obj1' ... 'objN' to accuracy.
-                - precision: Macro-averaged precision (correct / predicted non-empty).
-                - recall: Macro-averaged recall (correct / total ground truth).
-                - f1_score: Harmonic mean of precision and recall.
+                - overall_accuracy_strict: Exact-match accuracy across all positions and images.
+                - per_position_accuracy_strict: Dict mapping 'obj1' ... 'objN' to accuracy.
                 - num_images: Number of images evaluated.
                 - num_objects_per_image: Configured num_objects.
         """
+        n = self.num_objects
         if not self._all_predictions:
             return {
-                "overall_accuracy": 0.0,
-                "per_position_accuracy": {},
-                "precision": 0.0,
-                "recall": 0.0,
-                "f1_score": 0.0,
+                "overall_accuracy_strict": 0.0,
+                "per_position_accuracy_strict": {},
                 "num_images": 0,
-                "num_objects_per_image": self.num_objects,
+                "num_objects_per_image": n,
             }
 
-        n = self.num_objects
-        per_position_correct = [0] * n
         per_position_correct_strict = [0] * n
         per_position_total = [0] * n
-        total_correct = 0
-        total_correct_strict = 0
-        total_predicted_nonempty = 0
-        total_gt = 0
-
         for preds, truths in zip(self._all_predictions, self._all_ground_truth):
             for pos, (p, t) in enumerate(zip(preds, truths)):
                 if pos < n:
-                    match = _rope_match(p, t)
-                    match_strict = _rope_match_strict(p, t)
-                    per_position_correct[pos] += int(match)
-                    per_position_correct_strict[pos] += int(match_strict)
+                    per_position_correct_strict[pos] += int(self.strict(p, t))
                     per_position_total[pos] += 1
-                    total_correct += int(match)
-                    total_correct_strict += int(match_strict)
-                    total_gt += 1
-                    if p.strip():
-                        total_predicted_nonempty += 1
+        total_gt = sum(per_position_total)
 
-        overall_accuracy = total_correct / total_gt if total_gt > 0 else 0.0
-        overall_accuracy_strict = total_correct_strict / total_gt if total_gt > 0 else 0.0
-        precision = total_correct / total_predicted_nonempty if total_predicted_nonempty > 0 else 0.0
-        recall = total_correct / total_gt if total_gt > 0 else 0.0
-        f1 = self.compute_f1(precision, recall)
-
-        per_position_accuracy = {}
-        per_position_accuracy_strict = {}
-        for pos in range(n):
-            key = f"obj{pos + 1}"
-            denom = per_position_total[pos]
-            per_position_accuracy[key] = (
-                per_position_correct[pos] / denom if denom > 0 else 0.0
-            )
-            per_position_accuracy_strict[key] = (
-                per_position_correct_strict[pos] / denom if denom > 0 else 0.0
-            )
-
-        out = {
-            # Headline metric uses lenient matching (substring-tolerant);
-            # overall_accuracy_strict reports the canonical exact-match ROPE
-            # number alongside it. See _rope_match / _rope_match_strict.
-            "match_mode": "lenient",
-            "overall_accuracy": overall_accuracy,
-            "overall_accuracy_strict": overall_accuracy_strict,
-            "per_position_accuracy": per_position_accuracy,
-            "per_position_accuracy_strict": per_position_accuracy_strict,
-            "precision": precision,
-            "recall": recall,
-            "f1_score": f1,
+        return {
+            "overall_accuracy_strict": sum(per_position_correct_strict) / total_gt if total_gt > 0 else 0.0,
+            "per_position_accuracy_strict": {
+                f"obj{pos + 1}": per_position_correct_strict[pos] / denom if denom > 0 else 0.0
+                for pos, denom in enumerate(per_position_total)
+            },
             "num_images": len(self._all_predictions),
-            "num_objects_per_image": self.num_objects,
+            "num_objects_per_image": n,
         }
-
-        # Emit one extra accuracy column per additional matcher (e.g. a
-        # SynonymMatcher). lenient/strict are already reported above, so only
-        # matchers beyond those add keys; the default set adds nothing, keeping
-        # the committed output byte-identical.
-        extra = [m for m in getattr(self, "matchers", [])
-                 if getattr(m, "name", None) not in ("lenient", "strict")]
-        for m in extra:
-            m_correct = [0] * n
-            m_total = [0] * n
-            m_overall_correct = 0
-            m_overall_total = 0
-            for preds, truths in zip(self._all_predictions, self._all_ground_truth):
-                for pos, (p, t) in enumerate(zip(preds, truths)):
-                    if pos < n:
-                        hit = int(m.match(p, t))
-                        m_correct[pos] += hit
-                        m_total[pos] += 1
-                        m_overall_correct += hit
-                        m_overall_total += 1
-            out[KEY_FOR.get(m.name, f"overall_accuracy_{m.name}")] = (
-                m_overall_correct / m_overall_total if m_overall_total else 0.0
-            )
-            out[PER_POS_KEY_FOR.get(m.name, f"per_position_accuracy_{m.name}")] = {
-                f"obj{i + 1}": (m_correct[i] / m_total[i] if m_total[i] else 0.0)
-                for i in range(n)
-            }
-        return out
 
     def reset(self) -> None:
         """Reset accumulated prediction state."""

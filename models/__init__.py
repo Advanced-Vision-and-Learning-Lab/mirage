@@ -1,13 +1,27 @@
+"""Model wrappers, one file per family; imported on first use so ``import models`` needs no torch.
+
+The registry in ``predict.factory`` names each model as ``module:Class``.
 """
-Models module for the Mirage package.
+import importlib
 
-This module provides a flexible architecture for loading and using various
-Vision-Language Models (VLMs) and Large Language Models (LLMs) for
-hallucination testing and evaluation.
-"""
+_MODULES = {
+    "BaseModel": "base",
+    "PaligemmaModel": "paligemma",
+    "Qwen2VLModel": "qwen2vl",
+    "HFChatVLM": "hf_chat",
+    "Gemma4": "gemma4",
+    "Gemma4Thinking": "gemma4",
+    "Ministral3": "ministral3",
+    "AyaVision": "aya_vision",
+    "MuseGlimmer": "muse_glimmer",
+}
 
-from .base import BaseModel
-from .paligemma import PaligemmaModel
-from .qwen2vl import Qwen2VLModel
+__all__ = list(_MODULES)
 
-__all__ = ['BaseModel', 'PaligemmaModel', 'Qwen2VLModel']
+
+def __getattr__(name):
+    if name not in _MODULES:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(importlib.import_module(f".{_MODULES[name]}", __name__), name)
+    globals()[name] = value
+    return value

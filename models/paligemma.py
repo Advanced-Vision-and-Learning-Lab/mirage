@@ -7,11 +7,11 @@ multimodal model that can understand and reason about images and text.
 """
 
 import torch
-from typing import Any, Dict, List, Optional, Union, Literal
+from typing import Any, Dict, Optional, Union
 from pathlib import Path
 from PIL import Image
 
-from .base import BaseModel, ModelLoadError, ModelNotLoadedError, InvalidInputError
+from .base import BaseModel, ModelLoadError, ModelNotLoadedError
 
 
 class PaligemmaModel(BaseModel):
@@ -34,14 +34,13 @@ class PaligemmaModel(BaseModel):
         device: PyTorch device for model execution
     """
 
+    cache_name = "PaligemmaModel"
+
     def __init__(
         self,
         model_name: str = "google/paligemma-3b-mix-224",
         device: Optional[str] = None,
         torch_dtype: Optional[torch.dtype] = None,
-        quantization: Optional[Literal["int4", "int8", "none"]] = None,
-        quantization_backend: str = "torchao",
-        use_true_batching: bool = False,
         **kwargs
     ):
         """
@@ -51,23 +50,9 @@ class PaligemmaModel(BaseModel):
             model_name: HuggingFace model identifier for Paligemma
             device: Device to load model on ('cuda', 'cpu', or None for auto)
             torch_dtype: PyTorch data type for model weights (default: bfloat16)
-            quantization: Quantization method ('int4', 'int8', 'none', or None)
-            quantization_backend: Backend for quantization ('torchao' or 'bitsandbytes')
-            use_true_batching: Whether to use true batch processing (default: False)
             **kwargs: Additional arguments passed to base class
         """
-        super().__init__(
-            model_name,
-            model_type="local",
-            quantization=quantization,
-            use_true_batching=use_true_batching,
-            **kwargs
-        )
-
-        # Set model capabilities
-        self.supports_images = True
-        self.supports_text = True
-        self.max_tokens = 2048  # Typical max for Paligemma
+        super().__init__(model_name, **kwargs)
 
         # Model-specific attributes
         self.model = None
@@ -76,7 +61,6 @@ class PaligemmaModel(BaseModel):
             device = "cuda" if torch.cuda.is_available() else "cpu"
         self.device = device
         self.torch_dtype = torch_dtype or torch.bfloat16
-        self.quantization_backend = quantization_backend
 
         # Update config with Paligemma-specific defaults
         default_config = {
@@ -96,8 +80,7 @@ class PaligemmaModel(BaseModel):
         Load the Paligemma model and processor.
 
         This method loads the model from HuggingFace Hub and prepares it
-        for inference. It handles device placement, dtype conversion, and
-        configurable quantization.
+        for inference. It handles device placement and dtype conversion.
 
         Raises:
             ModelLoadError: If model loading fails
@@ -108,18 +91,10 @@ class PaligemmaModel(BaseModel):
             self._logger.info(f"Loading Paligemma model: {self.model_name}")
             self.processor = PaliGemmaProcessor.from_pretrained(self.model_name, use_fast=True)
 
-            # Get quantization config from base class helper
-            quantization_config = self.get_quantization_config(self.quantization_backend)
-
             # Prepare model loading arguments
             model_kwargs = {
                 "torch_dtype": self.torch_dtype,
             }
-
-            # Add quantization config if specified
-            if quantization_config is not None:
-                model_kwargs["quantization_config"] = quantization_config
-                self._logger.info(f"Loading with {self.quantization} quantization using {self.quantization_backend}")
 
             # Handle device placement more carefully
             if self.device != "cpu" and self.device is not None:
@@ -195,87 +170,28 @@ class PaligemmaModel(BaseModel):
 
         Raises:
             ModelNotLoadedError: If model is not loaded
-            InvalidInputError: If inputs are invalid
-        """
-        # Validate inputs
-        is_valid, error_msg = self.validate_input(prompt, image)
-        if not is_valid:
-            raise InvalidInputError(error_msg)
-
-        try:
-            # Prepare inputs
-            inputs = self._prepare_inputs(prompt, image)
-
-            # Merge generation config
-            generation_config = self.config.copy()
-            generation_config.update(kwargs)
-
-            # Generate response using helper
-            outputs = self._generate_with_config(inputs, generation_config)
-
-            # Decode response
-            input_len = inputs["input_ids"].shape[1]
-            response = self.processor.decode(
-                outputs[0][input_len:],
-                skip_special_tokens=True
-            )
-
-            return response.strip()
-
-        except Exception as e:
-            self._logger.error(f"Generation failed: {e}")
-            raise InvalidInputError(f"Failed to generate response: {e}")
-
-    def batch_generate(
-        self,
-        prompts: List[str],
-        images: Optional[List[Union[Image.Image, str, Path, None]]] = None,
-        batch_size: Optional[int] = None,
-        **kwargs
-    ) -> List[Optional[str]]:
-        """
-        Generate responses for a batch of inputs.
-
-        Supports both sequential processing (default) and true batch processing
-        based on the `use_true_batching` setting. When true batching is enabled,
-        processes multiple samples in parallel for improved efficiency.
-
-        Args:
-            prompts: List of text prompts
-            images: Optional list of images (can contain None values)
-            batch_size: Size of batches for true batching (only used if use_true_batching=True)
-            **kwargs: Generation parameters
-
-        Returns:
-            List[Optional[str]]: One entry per prompt; None where generation failed
-
-        Raises:
-            ModelNotLoadedError: If model is not loaded
-            InvalidInputError: If inputs are invalid
         """
         if not self.is_loaded:
-            raise ModelNotLoadedError("Model is not loaded")
+            raise ModelNotLoadedError("Call load_model() before generate().")
 
-        if images is None:
-            images = [None] * len(prompts)
+        # Prepare inputs
+        inputs = self._prepare_inputs(prompt, image)
 
-        if len(prompts) != len(images):
-            raise InvalidInputError("Number of prompts and images must match")
+        # Merge generation config
+        generation_config = self.config.copy()
+        generation_config.update(kwargs)
 
-        # Sequential processing (original behavior)
-        if not self.use_true_batching:
-            responses = []
-            for prompt, image in zip(prompts, images):
-                try:
-                    response = self.generate(prompt, image, **kwargs)
-                    responses.append(response)
-                except Exception as e:
-                    self._logger.warning(f"Failed to generate for prompt '{prompt[:50]}...': {e}")
-                    responses.append(None)
-            return responses
+        # Generate response using helper
+        outputs = self._generate_with_config(inputs, generation_config)
 
-        # True batch processing
-        return self._batch_generate_parallel(prompts, images, batch_size, **kwargs)
+        # Decode response
+        input_len = inputs["input_ids"].shape[1]
+        response = self.processor.decode(
+            outputs[0][input_len:],
+            skip_special_tokens=True
+        )
+
+        return response.strip()
 
     def _generate_with_config(
         self,
@@ -284,9 +200,6 @@ class PaligemmaModel(BaseModel):
     ) -> torch.Tensor:
         """
         Generate outputs using model.generate with the given config.
-
-        This helper method centralizes the generation logic to avoid duplication
-        between single and batch generation methods.
 
         Args:
             inputs: Prepared model inputs
@@ -306,104 +219,6 @@ class PaligemmaModel(BaseModel):
                 pad_token_id=self.processor.tokenizer.eos_token_id
             )
         return outputs
-
-    def _batch_generate_parallel(
-        self,
-        prompts: List[str],
-        images: Optional[List[Union[Image.Image, str, Path, None]]],
-        batch_size: Optional[int] = None,
-        **kwargs
-    ) -> List[Optional[str]]:
-        """
-        Generate responses using true batch processing.
-
-        This method processes multiple inputs in parallel batches for improved
-        efficiency compared to sequential processing.
-
-        Args:
-            prompts: List of text prompts
-            images: List of images (or None values)
-            batch_size: Size of batches (None = all at once)
-            **kwargs: Generation parameters
-
-        Returns:
-            List[Optional[str]]: One entry per prompt; None where generation failed
-        """
-        all_responses = []
-
-        # Use base class helper to split into batches
-        batches = self.batch_inputs(prompts, images, batch_size)
-
-        for batch_prompts, batch_images in batches:
-            try:
-                # Prepare batch inputs
-                batch_inputs = self._prepare_batch_inputs(batch_prompts, batch_images)
-
-                # Merge generation config
-                generation_config = self.config.copy()
-                generation_config.update(kwargs)
-
-                # Generate for batch using helper
-                outputs = self._generate_with_config(batch_inputs, generation_config)
-
-                # Decode all outputs in batch
-                input_len = batch_inputs["input_ids"].shape[1]
-                for output in outputs:
-                    response = self.processor.decode(
-                        output[input_len:],
-                        skip_special_tokens=True
-                    )
-                    all_responses.append(response.strip())
-
-            except Exception as e:
-                self._logger.error(f"Batch generation failed: {e}")
-                all_responses.extend([None] * len(batch_prompts))
-
-        return all_responses
-
-    def _prepare_batch_inputs(
-        self,
-        prompts: List[str],
-        images: Optional[List[Union[Image.Image, str, Path, None]]]
-    ) -> Dict[str, torch.Tensor]:
-        """
-        Prepare inputs for batch processing.
-
-        Args:
-            prompts: List of text prompts
-            images: List of images (or None values)
-
-        Returns:
-            Dict containing processed batch inputs for the model
-        """
-        # Preprocess all images and add <image> tokens to prompts
-        processed_images = []
-        processed_prompts = []
-
-        for prompt, image in zip(prompts, images):
-            if image is not None:
-                processed_images.append(self.preprocess_image(image))
-                # Add <image> token prefix if not already present
-                if not prompt.startswith("<image>"):
-                    processed_prompts.append(f"<image>{prompt}")
-                else:
-                    processed_prompts.append(prompt)
-            else:
-                processed_images.append(None)
-                processed_prompts.append(prompt)
-
-        # Use processor to prepare batch inputs
-        inputs = self.processor(
-            text=processed_prompts,
-            images=processed_images if any(img is not None for img in processed_images) else None,
-            return_tensors="pt",
-            padding=True
-        )
-
-        # Move inputs to device
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
-
-        return inputs
 
     def _prepare_inputs(
         self,
@@ -439,20 +254,3 @@ class PaligemmaModel(BaseModel):
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
         return inputs
-
-    def get_model_info(self) -> Dict[str, Any]:
-        """
-        Get Paligemma-specific model information.
-
-        Returns:
-            Dict containing model metadata and current state
-        """
-        info = super().get_model_info()
-        info.update({
-            'device': self.device,
-            'torch_dtype': str(self.torch_dtype),
-            'model_architecture': 'PaliGemma',
-            'input_resolution': '224x224',
-            'parameter_count': '3B'
-        })
-        return info

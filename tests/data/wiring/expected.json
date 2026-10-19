@@ -1,0 +1,801 @@
+{
+ "coco-chair": {
+  "cache_stats": {
+   "bypassed": 0,
+   "hits": 2,
+   "misses": 0
+  },
+  "caption_details": [
+   {
+    "caption": "This is a detailed description of a scene that appears to be a historical or rustic kitchen set, possibly a museum exhibit or a film set.\n\n**Overall Scene:**\nThe image depicts the interior of a large, old-fashioned kitchen. The atmosphere is rustic, with dark wood, metal cookware hanging from the ceiling, and a large hearth or cooking area in the background. A man is standing in the middle ground, and a large wooden countertop occupies the foreground.\n\n**Objects and Details (Foreground to Background):**\n\n**Foreground (Countertop):**\n*   **Countertop:** A large, light-colored wooden countertop dominates the lower half of the image. It appears well-used, with visible grain and some signs of wear.\n*   **Food/Items on Counter:**\n    *   On the left, there is a round, light-colored baked item (perhaps bread or a pie) resting on the wood.\n    *   Next to it, there is a small, shallow bowl containing a mixture of green and brown items (possibly herbs or vegetables).\n    *   Several small, round, light-colored bowls are scattered on the counter.\n    *   A small, dark brown jar or container is visible near the center.\n    *   A piece of light-colored, textured cloth (perhaps dough or a rag) is draped on the counter.\n    *   Several utensils, including what looks like a wooden spoon or spatula, are resting on the counter.\n    *   A metal container (possibly a canister or bucket) is visible on the far right edge of the counter.\n*   **Under Counter:** Below the main countertop, there is a lower wooden shelf area. A large, cylindrical, metallic object (possibly a canister or storage container) is visible on this lower shelf.\n\n**Middle Ground (The Man and Cooking Area):**\n*   **The Man:** A man is standing slightly to the right of the center.\n    *   **Attire:** He is wearing a light-colored, long-sleeved shirt or smock, possibly off-white or beige. Over this, he wears a dark apron or vest. His pants are dark (black or very dark brown).\n    *   **Appearance:** He has dark, somewhat tousled hair.\n    *   **Action:** He is standing upright, facing slightly toward the viewer's left, with a neutral or focused expression.\n*   **Cooking Area/Hearth:** Behind",
+    "chair_i": 0.0,
+    "chair_s": 0,
+    "ground_truth_objects": [
+     "bottle",
+     "bowl",
+     "broccoli",
+     "carrot",
+     "cup",
+     "dining table",
+     "knife",
+     "oven",
+     "person",
+     "sink",
+     "spoon"
+    ],
+    "hallucinated_objects": [],
+    "is_hallucinated": false,
+    "mentioned_objects": [
+     "bowl",
+     "person",
+     "spoon"
+    ],
+    "recall": 0.2727272727272727
+   },
+   {
+    "caption": "This is an interior photograph of a kitchen and adjacent living area, suggesting a rental unit or apartment. The overall aesthetic is bright and functional, with light-colored walls and wooden cabinetry.\n\n**Kitchen Area (Right and Center):**\n*   **Cabinetry:** There is extensive wooden cabinetry, appearing to be a medium to light brown wood tone. These cabinets line the back wall of the kitchen area.\n*   **Countertops:** The countertops are a light, neutral color, likely beige or light tan.\n*   **Appliances:**\n    *   A white stove/range is centrally located under the upper cabinets. It has a white front and control panel.\n    *   A white refrigerator is visible on the far right side of the image.\n    *   A sink area is visible in the back right corner, with a faucet.\n*   **Backsplash/Wall Detail:** Above the counter area, there is a section of wall that appears to have a decorative element or tile, featuring warm, earthy tones (browns and tans).\n*   **Window:** A window is present in the back wall of the kitchen area, allowing natural light in. It has white framing.\n*   **Objects on Counter:** Several small kitchen items are visible on the counter, including what look like coffee makers or small appliances, and various containers.\n*   **Fruit Bowl:** In the foreground, on the kitchen island/table, there is a dark bowl filled with bright citrus fruits, including oranges and yellow/orange mandarins.\n\n**Foreground/Island:**\n*   **Table/Island:** A large, dark reddish-brown or mahogany-colored table or kitchen island dominates the immediate foreground.\n*   **Seating:** Several light-colored, possibly beige or off-white, chairs or stools are pulled up to this table. At least three are clearly visible.\n\n**Living/Dining Area (Left):**\n*   **Walls:** The walls in the left portion of the image are painted a very light, neutral color, such as cream or pale yellow.\n*   **Trim/Wainscoting:** There is a horizontal band of darker wood trim or wainscoting running along the lower portion of the walls in this area.\n*   **Door:** A white interior door is visible on the left wall. It appears to be a standard, solid-core door.\n*   **Lighting:** Several ceiling lights are visible, emitting a warm, bright light. Natural",
+    "chair_i": 0.3,
+    "chair_s": 1,
+    "ground_truth_objects": [
+     "banana",
+     "chair",
+     "dining table",
+     "orange",
+     "oven",
+     "potted plant",
+     "refrigerator",
+     "sink"
+    ],
+    "hallucinated_objects": [
+     "bowl"
+    ],
+    "is_hallucinated": true,
+    "mentioned_objects": [
+     "bowl",
+     "chair",
+     "dining table",
+     "orange",
+     "refrigerator",
+     "sink"
+    ],
+    "recall": 0.625
+   }
+  ],
+  "chair_results": {
+   "chair_i": 0.15,
+   "chair_s": 0.5,
+   "num_gt_objects": 19,
+   "num_hallucinated_mentions": 3,
+   "num_hallucinated_sentences": 1,
+   "num_object_mentions": 20,
+   "num_recalled_gt_objects": 8,
+   "num_sentences": 2,
+   "recall": 0.42105263157894735
+  },
+  "config": {
+   "cache_only": true,
+   "dataset": "coco",
+   "images_skipped": 0,
+   "live_judge": false,
+   "max_new_tokens": 512,
+   "metric": "chair",
+   "model": "gemma4-e4b",
+   "model_identity": {
+    "class_name": "HFChatVLM",
+    "dtype": "torch.bfloat16",
+    "model_id": "google/gemma-4-E4B-it",
+    "provider": "local",
+    "quantization": "none",
+    "revision": "ee0ef6023621cff504d758262d4e04895a5af4a2"
+   },
+   "pool_size": 2000,
+   "pope_questions": 6,
+   "samples": 2
+  },
+  "hallucinated_objects": {
+   "bowl": 3
+  },
+  "judged": {
+   "coverage": 0.5,
+   "head": 0.8333333333333334,
+   "mod_chair_i": 0.0,
+   "mod_chair_s": 0.0,
+   "n_head": 9,
+   "n_raw": 20,
+   "raw": 0.15
+  },
+  "summary": {
+   "captions_with_hallucinations": 1,
+   "chair_i": 0.15,
+   "chair_s": 0.5,
+   "hallucination_free_captions": 1,
+   "recall": 0.42105263157894735,
+   "total_captions": 2
+  }
+ },
+ "coco-pope": {
+  "cache_stats": {
+   "bypassed": 0,
+   "hits": 12,
+   "misses": 0
+  },
+  "config": {
+   "cache_only": true,
+   "dataset": "coco",
+   "images_skipped": 0,
+   "live_judge": false,
+   "max_new_tokens": 512,
+   "metric": "pope",
+   "model": "gemma4-e4b",
+   "model_identity": {
+    "class_name": "HFChatVLM",
+    "dtype": "torch.bfloat16",
+    "model_id": "google/gemma-4-E4B-it",
+    "provider": "local",
+    "quantization": "none",
+    "revision": "ee0ef6023621cff504d758262d4e04895a5af4a2"
+   },
+   "pool_size": 2000,
+   "pope_questions": 6,
+   "samples": 2
+  },
+  "f1_score": 0.8333333333333334,
+  "judged": {
+   "f1": 0.8333333333333334,
+   "head": 0.8333333333333334,
+   "n_head": 12,
+   "n_raw": 12,
+   "raw": 0.8333333333333334,
+   "raw_balanced": 0.8333333333333334,
+   "yes_ratio": 0.5
+  },
+  "mode": "random",
+  "num_questions": 12,
+  "object_accuracy": {
+   "banana": 1.0,
+   "cake": 0.0,
+   "car": 1.0,
+   "carrot": 0.0,
+   "chair": 1.0,
+   "fire hydrant": 1.0,
+   "giraffe": 1.0,
+   "laptop": 1.0,
+   "orange": 1.0,
+   "oven": 1.0,
+   "person": 1.0,
+   "spoon": 1.0
+  },
+  "overall_accuracy": 0.8333333333333334,
+  "pope_results": {
+   "accuracy": 0.8333333333333334,
+   "confusion_matrix": {
+    "false_negatives": 1,
+    "false_positives": 1,
+    "true_negatives": 5,
+    "true_positives": 5
+   },
+   "f1_score": 0.8333333333333334,
+   "mode": "random",
+   "no_accuracy": 0.8333333333333334,
+   "precision": 0.8333333333333334,
+   "recall": 0.8333333333333334,
+   "yes_accuracy": 0.8333333333333334,
+   "yes_ratio": 0.5
+  },
+  "precision": 0.8333333333333334,
+  "recall": 0.8333333333333334,
+  "yes_ratio": 0.5
+ },
+ "coco-rope": {
+  "cache_stats": {
+   "bypassed": 0,
+   "hits": 10,
+   "misses": 0
+  },
+  "config": {
+   "cache_only": true,
+   "dataset": "coco",
+   "images_skipped": 0,
+   "live_judge": false,
+   "max_new_tokens": 512,
+   "metric": "rope",
+   "model": "gemma4-e4b",
+   "model_identity": {
+    "class_name": "HFChatVLM",
+    "dtype": "torch.bfloat16",
+    "model_id": "google/gemma-4-E4B-it",
+    "provider": "local",
+    "quantization": "none",
+    "revision": "ee0ef6023621cff504d758262d4e04895a5af4a2"
+   },
+   "pool_size": 3000,
+   "pope_questions": 6,
+   "samples": 2
+  },
+  "judged": {
+   "correct_incl_unsure_as_wrong": 0.1,
+   "head": 0.1,
+   "n_head": 10,
+   "n_raw": 10,
+   "raw": 0.0,
+   "related": 0.0
+  },
+  "num_images": 2,
+  "num_objects_per_image": 5,
+  "overall_accuracy_strict": 0.0,
+  "per_position_accuracy_strict": {
+   "obj1": 0.0,
+   "obj2": 0.0,
+   "obj3": 0.0,
+   "obj4": 0.0,
+   "obj5": 0.0
+  }
+ },
+ "coco-throne": {
+  "cache_stats": {
+   "bypassed": 0,
+   "hits": 2,
+   "misses": 0
+  },
+  "class_wise_results": {
+   "banana": {
+    "f1": 0.0,
+    "fn": 1,
+    "fp": 0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "tp": 0
+   },
+   "bottle": {
+    "f1": 0.0,
+    "fn": 1,
+    "fp": 0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "tp": 0
+   },
+   "bowl": {
+    "f1": 0.6666666666666666,
+    "fn": 0,
+    "fp": 1,
+    "precision": 0.5,
+    "recall": 1.0,
+    "tp": 1
+   },
+   "broccoli": {
+    "f1": 0.0,
+    "fn": 1,
+    "fp": 0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "tp": 0
+   },
+   "carrot": {
+    "f1": 0.0,
+    "fn": 1,
+    "fp": 0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "tp": 0
+   },
+   "chair": {
+    "f1": 1.0,
+    "fn": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 1
+   },
+   "cup": {
+    "f1": 0.0,
+    "fn": 1,
+    "fp": 0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "tp": 0
+   },
+   "dining table": {
+    "f1": 0.0,
+    "fn": 2,
+    "fp": 0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "tp": 0
+   },
+   "knife": {
+    "f1": 0.0,
+    "fn": 1,
+    "fp": 0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "tp": 0
+   },
+   "orange": {
+    "f1": 1.0,
+    "fn": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 1
+   },
+   "oven": {
+    "f1": 0.6666666666666666,
+    "fn": 1,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 0.5,
+    "tp": 1
+   },
+   "person": {
+    "f1": 1.0,
+    "fn": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 1
+   },
+   "potted plant": {
+    "f1": 0.0,
+    "fn": 1,
+    "fp": 0,
+    "precision": 0.0,
+    "recall": 0.0,
+    "tp": 0
+   },
+   "refrigerator": {
+    "f1": 1.0,
+    "fn": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 1
+   },
+   "sink": {
+    "f1": 0.6666666666666666,
+    "fn": 1,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 0.5,
+    "tp": 1
+   },
+   "spoon": {
+    "f1": 1.0,
+    "fn": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 1
+   }
+  },
+  "config": {
+   "cache_only": true,
+   "dataset": "coco",
+   "images_skipped": 0,
+   "live_judge": false,
+   "max_new_tokens": 512,
+   "metric": "throne",
+   "model": "gemma4-e4b",
+   "model_identity": {
+    "class_name": "HFChatVLM",
+    "dtype": "torch.bfloat16",
+    "model_id": "google/gemma-4-E4B-it",
+    "provider": "local",
+    "quantization": "none",
+    "revision": "ee0ef6023621cff504d758262d4e04895a5af4a2"
+   },
+   "pool_size": 2000,
+   "pope_questions": 6,
+   "samples": 2
+  },
+  "judged": {
+   "P": 0.9375,
+   "R": 0.4375,
+   "head": 0.7630813953488372,
+   "n_head": 16,
+   "raw": 0.7630813953488372
+  },
+  "per_image_details": [
+   {
+    "caption": "This is a detailed description of a scene that appears to be a historical or rustic kitchen set, possibly a museum exhibit or a film set.\n\n**Overall Scene:**\nThe image depicts the interior of a large, old-fashioned kitchen. The atmosphere is rustic, with dark wood, metal cookware hanging from the ceiling, and a large hearth or cooking area in the background. A man is standing in the middle ground, and a large wooden countertop occupies the foreground.\n\n**Objects and Details (Foreground to Background):**\n\n**Foreground (Countertop):**\n*   **Countertop:** A large, light-colored wooden countertop dominates the lower half of the image. It appears well-used, with visible grain and some signs of wear.\n*   **Food/Items on Counter:**\n    *   On the left, there is a round, light-colored baked item (perhaps bread or a pie) resting on the wood.\n    *   Next to it, there is a small, shallow bowl containing a mixture of green and brown items (possibly herbs or vegetables).\n    *   Several small, round, light-colored bowls are scattered on the counter.\n    *   A small, dark brown jar or container is visible near the center.\n    *   A piece of light-colored, textured cloth (perhaps dough or a rag) is draped on the counter.\n    *   Several utensils, including what looks like a wooden spoon or spatula, are resting on the counter.\n    *   A metal container (possibly a canister or bucket) is visible on the far right edge of the counter.\n*   **Under Counter:** Below the main countertop, there is a lower wooden shelf area. A large, cylindrical, metallic object (possibly a canister or storage container) is visible on this lower shelf.\n\n**Middle Ground (The Man and Cooking Area):**\n*   **The Man:** A man is standing slightly to the right of the center.\n    *   **Attire:** He is wearing a light-colored, long-sleeved shirt or smock, possibly off-white or beige. Over this, he wears a dark apron or vest. His pants are dark (black or very dark brown).\n    *   **Appearance:** He has dark, somewhat tousled hair.\n    *   **Action:** He is standing upright, facing slightly toward the viewer's left, with a neutral or focused expression.\n*   **Cooking Area/Hearth:** Behind",
+    "disqualified_objects": [],
+    "gt_objects": [
+     "bottle",
+     "bowl",
+     "broccoli",
+     "carrot",
+     "cup",
+     "dining table",
+     "knife",
+     "oven",
+     "person",
+     "sink",
+     "spoon"
+    ],
+    "precision": 1.0,
+    "predicted_objects": [
+     "bowl",
+     "person",
+     "spoon"
+    ],
+    "recall": 0.2727272727272727
+   },
+   {
+    "caption": "This is an interior photograph of a kitchen and adjacent living area, suggesting a rental unit or apartment. The overall aesthetic is bright and functional, with light-colored walls and wooden cabinetry.\n\n**Kitchen Area (Right and Center):**\n*   **Cabinetry:** There is extensive wooden cabinetry, appearing to be a medium to light brown wood tone. These cabinets line the back wall of the kitchen area.\n*   **Countertops:** The countertops are a light, neutral color, likely beige or light tan.\n*   **Appliances:**\n    *   A white stove/range is centrally located under the upper cabinets. It has a white front and control panel.\n    *   A white refrigerator is visible on the far right side of the image.\n    *   A sink area is visible in the back right corner, with a faucet.\n*   **Backsplash/Wall Detail:** Above the counter area, there is a section of wall that appears to have a decorative element or tile, featuring warm, earthy tones (browns and tans).\n*   **Window:** A window is present in the back wall of the kitchen area, allowing natural light in. It has white framing.\n*   **Objects on Counter:** Several small kitchen items are visible on the counter, including what look like coffee makers or small appliances, and various containers.\n*   **Fruit Bowl:** In the foreground, on the kitchen island/table, there is a dark bowl filled with bright citrus fruits, including oranges and yellow/orange mandarins.\n\n**Foreground/Island:**\n*   **Table/Island:** A large, dark reddish-brown or mahogany-colored table or kitchen island dominates the immediate foreground.\n*   **Seating:** Several light-colored, possibly beige or off-white, chairs or stools are pulled up to this table. At least three are clearly visible.\n\n**Living/Dining Area (Left):**\n*   **Walls:** The walls in the left portion of the image are painted a very light, neutral color, such as cream or pale yellow.\n*   **Trim/Wainscoting:** There is a horizontal band of darker wood trim or wainscoting running along the lower portion of the walls in this area.\n*   **Door:** A white interior door is visible on the left wall. It appears to be a standard, solid-core door.\n*   **Lighting:** Several ceiling lights are visible, emitting a warm, bright light. Natural",
+    "disqualified_objects": [
+     "cup"
+    ],
+    "gt_objects": [
+     "banana",
+     "chair",
+     "dining table",
+     "orange",
+     "oven",
+     "potted plant",
+     "refrigerator",
+     "sink"
+    ],
+    "precision": 0.8333333333333334,
+    "predicted_objects": [
+     "bowl",
+     "chair",
+     "orange",
+     "oven",
+     "refrigerator",
+     "sink"
+    ],
+    "recall": 0.625
+   }
+  ],
+  "summary": {
+   "f0.5": 0.7585544692737431,
+   "f1": 0.602635228848821,
+   "precision": 0.9166666666666667,
+   "recall": 0.44886363636363635,
+   "total_images": 2
+  },
+  "throne_results": {
+   "distractor_ratio": 38.0,
+   "evaluator_dtype": "bfloat16",
+   "evaluator_max_input_tokens": 1024,
+   "f0.5": 0.7585544692737431,
+   "f1": 0.602635228848821,
+   "median_questions_per_image": 240,
+   "num_categories_checked": 80,
+   "num_images": 2,
+   "num_question_formats": 3,
+   "num_truncated_evaluator_inputs": 0,
+   "precision": 0.9166666666666667,
+   "recall": 0.44886363636363635
+  }
+ },
+ "visual_genome-chair": {
+  "cache_stats": {
+   "bypassed": 0,
+   "hits": 2,
+   "misses": 0
+  },
+  "caption_details": [
+   {
+    "caption": "Two men are standing on a paved sidewalk next to a street lined with tall, bare-branched trees, while a white pickup truck and other vehicles are visible in the background near modern brick buildings.",
+    "chair_i": 0.8125,
+    "chair_s": 1,
+    "ground_truth_objects": [
+     "trees",
+     "sidewalk",
+     "building",
+     "street",
+     "wall",
+     "tree",
+     "shade",
+     "van",
+     "tree trunk",
+     "clock",
+     "windows",
+     "man",
+     "lamp post",
+     "sign",
+     "car",
+     "back",
+     "jacket",
+     "pants",
+     "shirt",
+     "parking meter",
+     "shoes",
+     "arm",
+     "bike",
+     "headlight",
+     "glasses",
+     "chin"
+    ],
+    "hallucinated_objects": [
+     "brick",
+     "buildings",
+     "lined",
+     "men",
+     "modern",
+     "near",
+     "next",
+     "paved",
+     "pickup",
+     "truck",
+     "two",
+     "vehicles",
+     "visible"
+    ],
+    "is_hallucinated": true,
+    "mentioned_objects": [
+     "brick",
+     "buildings",
+     "lined",
+     "men",
+     "modern",
+     "near",
+     "next",
+     "paved",
+     "pickup",
+     "sidewalk",
+     "street",
+     "trees",
+     "truck",
+     "two",
+     "vehicles",
+     "visible"
+    ],
+    "recall": 0.11538461538461539
+   },
+   {
+    "caption": "A young man wearing a backpack is crossing a crosswalk on a city sidewalk, with a red sedan parked nearby on the street. In the background, there are several tall brick buildings, including a large residential tower, and a modern glass-fronted building on the right, all under a bright, clear sky.",
+    "chair_i": 0.7619047619047619,
+    "chair_s": 1,
+    "ground_truth_objects": [
+     "road",
+     "sidewalk",
+     "building",
+     "street light",
+     "crosswalk",
+     "man",
+     "pole",
+     "window",
+     "car",
+     "tree",
+     "backpack",
+     "sneakers",
+     "walk sign",
+     "bike",
+     "sign",
+     "lights"
+    ],
+    "hallucinated_objects": [
+     "brick",
+     "bright",
+     "buildings",
+     "city",
+     "clear",
+     "crossing",
+     "modern",
+     "nearby",
+     "residential",
+     "sedan",
+     "several",
+     "sky",
+     "street",
+     "tower",
+     "wearing",
+     "young"
+    ],
+    "is_hallucinated": true,
+    "mentioned_objects": [
+     "backpack",
+     "brick",
+     "bright",
+     "building",
+     "buildings",
+     "city",
+     "clear",
+     "crossing",
+     "crosswalk",
+     "man",
+     "modern",
+     "nearby",
+     "residential",
+     "sedan",
+     "several",
+     "sidewalk",
+     "sky",
+     "street",
+     "tower",
+     "wearing",
+     "young"
+    ],
+    "recall": 0.3125
+   }
+  ],
+  "chair_results": {
+   "chair_i": 0.7837837837837838,
+   "chair_s": 1.0,
+   "num_gt_objects": 42,
+   "num_hallucinated_mentions": 29,
+   "num_hallucinated_sentences": 2,
+   "num_object_mentions": 37,
+   "num_recalled_gt_objects": 8,
+   "num_sentences": 2,
+   "recall": 0.19047619047619047
+  },
+  "config": {
+   "cache_only": true,
+   "dataset": "visual_genome",
+   "images_skipped": 1,
+   "live_judge": false,
+   "max_new_tokens": 512,
+   "metric": "chair",
+   "model": "gemma4-e4b",
+   "model_identity": {
+    "class_name": "HFChatVLM",
+    "dtype": "torch.bfloat16",
+    "model_id": "google/gemma-4-E4B-it",
+    "provider": "local",
+    "quantization": "none",
+    "revision": "ee0ef6023621cff504d758262d4e04895a5af4a2"
+   },
+   "pool_size": 2000,
+   "pope_questions": 6,
+   "samples": 2
+  },
+  "hallucinated_objects": {
+   "brick": 2,
+   "buildings": 2,
+   "city": 1,
+   "crossing": 1,
+   "lined": 1,
+   "men": 1,
+   "modern": 2,
+   "near": 1,
+   "nearby": 1,
+   "next": 1,
+   "paved": 1,
+   "pickup": 1,
+   "sedan": 1,
+   "street": 1,
+   "truck": 1,
+   "two": 1,
+   "vehicles": 1,
+   "visible": 1,
+   "wearing": 1,
+   "young": 1
+  },
+  "judged": {
+   "coverage": 0.19148936170212766,
+   "head": 0.5421686746987951,
+   "mod_chair_i": 0.0,
+   "mod_chair_s": 0.0,
+   "n_head": 18,
+   "n_raw": 37,
+   "raw": 0.7837837837837838
+  },
+  "summary": {
+   "captions_with_hallucinations": 2,
+   "chair_i": 0.7837837837837838,
+   "chair_s": 1.0,
+   "hallucination_free_captions": 0,
+   "recall": 0.19047619047619047,
+   "total_captions": 2
+  }
+ },
+ "visual_genome-pope": {
+  "cache_stats": {
+   "bypassed": 0,
+   "hits": 12,
+   "misses": 0
+  },
+  "config": {
+   "cache_only": true,
+   "dataset": "visual_genome",
+   "images_skipped": 1,
+   "live_judge": false,
+   "max_new_tokens": 512,
+   "metric": "pope",
+   "model": "gemma4-e4b",
+   "model_identity": {
+    "class_name": "HFChatVLM",
+    "dtype": "torch.bfloat16",
+    "model_id": "google/gemma-4-E4B-it",
+    "provider": "local",
+    "quantization": "none",
+    "revision": "ee0ef6023621cff504d758262d4e04895a5af4a2"
+   },
+   "pool_size": 2000,
+   "pope_questions": 6,
+   "samples": 2
+  },
+  "f1_score": 0.923076923076923,
+  "judged": {
+   "f1": 0.923076923076923,
+   "head": 0.875,
+   "n_head": 10,
+   "n_raw": 12,
+   "raw": 0.9166666666666666,
+   "raw_balanced": 0.9166666666666667,
+   "yes_ratio": 0.7
+  },
+  "mode": "random",
+  "num_questions": 12,
+  "object_accuracy": {
+   "arch under bridge": 1.0,
+   "backpack": 1.0,
+   "candy wheel": 0.0,
+   "car": 1.0,
+   "coastal": 1.0,
+   "four pieces of toast": 1.0,
+   "grass stands": 1.0,
+   "hobby": 1.0,
+   "road": 1.0,
+   "shade": 1.0,
+   "sign": 1.0
+  },
+  "overall_accuracy": 0.9166666666666666,
+  "pope_results": {
+   "accuracy": 0.9166666666666666,
+   "confusion_matrix": {
+    "false_negatives": 0,
+    "false_positives": 1,
+    "true_negatives": 5,
+    "true_positives": 6
+   },
+   "f1_score": 0.923076923076923,
+   "mode": "random",
+   "no_accuracy": 0.8333333333333334,
+   "precision": 0.8571428571428571,
+   "recall": 1.0,
+   "yes_accuracy": 1.0,
+   "yes_ratio": 0.5833333333333334
+  },
+  "precision": 0.8571428571428571,
+  "recall": 1.0,
+  "yes_ratio": 0.5833333333333334
+ },
+ "visual_genome-rope": {
+  "cache_stats": {
+   "bypassed": 0,
+   "hits": 10,
+   "misses": 0
+  },
+  "config": {
+   "cache_only": true,
+   "dataset": "visual_genome",
+   "images_skipped": 1,
+   "live_judge": false,
+   "max_new_tokens": 512,
+   "metric": "rope",
+   "model": "gemma4-e4b",
+   "model_identity": {
+    "class_name": "HFChatVLM",
+    "dtype": "torch.bfloat16",
+    "model_id": "google/gemma-4-E4B-it",
+    "provider": "local",
+    "quantization": "none",
+    "revision": "ee0ef6023621cff504d758262d4e04895a5af4a2"
+   },
+   "pool_size": 2000,
+   "pope_questions": 6,
+   "samples": 2
+  },
+  "judged": {
+   "correct_incl_unsure_as_wrong": 0.5,
+   "head": 0.5,
+   "n_head": 10,
+   "n_raw": 10,
+   "raw": 0.1,
+   "related": 0.09999999999999998
+  },
+  "num_images": 2,
+  "num_objects_per_image": 5,
+  "overall_accuracy_strict": 0.1,
+  "per_position_accuracy_strict": {
+   "obj1": 0.5,
+   "obj2": 0.0,
+   "obj3": 0.0,
+   "obj4": 0.0,
+   "obj5": 0.0
+  }
+ }
+}
