@@ -3,9 +3,9 @@
   "theme": "mint",
   "name": "Mirage",
   "colors": {
-    "primary": "#2B3C83",
-    "light": "#2B3C83",
-    "dark": "#2B3C83"
+    "primary": "#3B4FA8",
+    "light": "#8DA0F0",
+    "dark": "#3B4FA8"
   },
   "navigation": {
     "pages": [
