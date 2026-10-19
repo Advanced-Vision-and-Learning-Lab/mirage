@@ -7,5 +7,5 @@ authors:
     given-names: Salim
 repository-code: "https://github.com/Advanced-Vision-and-Learning-Lab/mirage"
 url: "https://mirage-eval.com"
-license: LicenseRef-PolyForm-Noncommercial-1.0.0
+license: Apache-2.0
 date-released: 2026-10-19
