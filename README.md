@@ -8,3 +8,7 @@ python -m nltk.downloader punkt_tab averaged_perceptron_tagger_eng stopwords wor
 python run.py --dataset coco --metric pope --model gemma4-e4b --samples 10
 python repro.py --records tests/data/records.json.gz --check   # reproduce the results table
 ```
+
+## License and citation
+
+Free for non-commercial use under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use needs a separate license from the copyright holder. If you use Mirage, please cite it with [CITATION.cff](CITATION.cff). Test images and annotations in `tests/data/wiring` keep their own licenses ([ATTRIBUTION.md](tests/data/wiring/ATTRIBUTION.md)).

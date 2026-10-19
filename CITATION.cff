@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use Mirage, please cite it as below."
+title: "Mirage: object hallucination metrics for vision language models on sparsely labelled datasets"
+type: software
+authors:
+  - family-names: Alkharsa
+    given-names: Salim
+repository-code: "https://github.com/Advanced-Vision-and-Learning-Lab/mirage"
+url: "https://mirage-eval.com"
+license: LicenseRef-PolyForm-Noncommercial-1.0.0
+date-released: 2026-10-19
