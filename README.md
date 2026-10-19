@@ -11,4 +11,4 @@ python repro.py --records tests/data/records.json.gz --check   # reproduce the r
 
 ## License and citation
 
-Free for non-commercial use under the [PolyForm Noncommercial License 1.0.0](LICENSE). Commercial use needs a separate license from the copyright holder. If you use Mirage, please cite it with [CITATION.cff](CITATION.cff). Test images and annotations in `tests/data/wiring` keep their own licenses ([ATTRIBUTION.md](tests/data/wiring/ATTRIBUTION.md)).
+Open source under the [Apache License 2.0](LICENSE), including commercial use. Keep the [NOTICE](NOTICE) file with any copy, and if you use Mirage, please acknowledge it and cite it with [CITATION.cff](CITATION.cff). Test images and annotations in `tests/data/wiring` keep their own licenses ([ATTRIBUTION.md](tests/data/wiring/ATTRIBUTION.md)).
