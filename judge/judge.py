@@ -1,4 +1,4 @@
-"""Judge: verdicts for the judged metrics, from the frozen store first and a live judge for misses."""
+"""Judge: verdicts for the judged metrics, from the frozen store first and an optional backend for misses."""
 
 import re
 from pathlib import Path
@@ -38,7 +38,7 @@ def mention_requests(images: List[Dict], verdicts: Dict, refs: Optional[Dict[str
 
 class Judge:
     """Verdicts for scoring: the frozen :class:`VerdictStore` answers first; with a live judge
-    (:class:`judge.claude.ClaudeCLI`) missing mention verdicts are graded and kept in the live
+    (:class:`judge.backend.JudgeBackend`) missing mention verdicts are graded and kept in the live
     shard, otherwise the metric's ``score`` raises :class:`MissingVerdicts` for them. ROPE has no
     live path yet (judge-rope needs box-annotated images and raw replies), so its misses always
     raise; POPE drop decisions and the committee exist only for the frozen images, so they raise
@@ -49,15 +49,25 @@ class Judge:
         self.store, self.live = store, live
 
     @classmethod
-    def load(cls, path: Optional[Path] = None, live: bool = False, live_dir: Optional[Path] = None) -> "Judge":
+    def load(cls, path: Optional[Path] = None, live: bool = False, live_dir: Optional[Path] = None,
+             backend: str = "claude", model: Optional[str] = None) -> "Judge":
         """The frozen store (see :meth:`VerdictStore.open`) plus the live shard in ``live_dir``, if
-        given; ``live=True`` adds the Claude judge, writing to ``live_dir`` (default ``<store>/live``)."""
+        given; ``live=True`` adds the selected judge backend, writing to ``live_dir`` (default
+        ``<store>/live``). Claude remains the default backend."""
         store = VerdictStore.open(path, live=live, live_dir=live_dir)
         if not live:
             return cls(store)
-        from .claude import ClaudeCLI
+        if backend == "claude":
+            from .claude import ClaudeCLI
 
-        return cls(store, ClaudeCLI())
+            live_judge = ClaudeCLI(model=model)
+        elif backend == "codex":
+            from .codex import CodexCLI
+
+            live_judge = CodexCLI(model=model)
+        else:
+            raise ValueError(f"unknown judge backend: {backend}")
+        return cls(store, live_judge)
 
     def __call__(self, kind: str, records, ds: Optional[str] = None, refs: Optional[Dict[str, set]] = None,
                  image_paths: Optional[Dict[str, str]] = None) -> Dict:

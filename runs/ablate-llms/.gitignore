@@ -1,0 +1,11 @@
+# Run inputs and per-item outputs are generated locally; keep only compact score summaries.
+/images/
+/inputs/
+/judgments/
+/outputs/
+/human-labeling/
+/prepared.json
+/scores/*
+!/scores/codex-gpt-6.1-sol.json
+!/scores/codex-gpt-6.1-sol-rank-deltas.csv
+!/scores/codex-gpt-6.1-sol-rank-deltas.json
