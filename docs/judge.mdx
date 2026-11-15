@@ -3,11 +3,11 @@ title: "Judge"
 description: "How the judge grades answers, and how it agrees with human labels."
 ---
 
-The judge is a vision-language model that inspects the image and grades a model’s answer. Mirage has a shared judge interface with Claude Code and Codex CLI backends. The published baseline uses Claude Opus; the alternate evaluation uses GPT-6.1 Sol through Codex CLI. Each backend receives the same frozen candidate items, images and task-specific rubric. It grades caption mentions (present, absent, not an object, unsure), ROPE answers (correct, related, wrong, unsure) and POPE “no” questions (present, absent, unsure). Compact Codex score summaries are stored under `runs/ablate-llms/scores/`; raw inputs, images and per-item outputs are generated locally and are not checked into this repository. They do not overwrite the published Opus verdicts in `judgments/`.
+The judge is a vision-language model that inspects the image and grades a model’s answer. Mirage has a shared judge interface with Claude Code and Codex CLI backends. The published baseline uses Claude Opus 5.5; the alternate evaluation uses GPT-6.1 Sol through Codex CLI. Each backend receives the same frozen candidate items, images and task-specific rubric. It grades caption mentions (present, absent, not an object, unsure), ROPE answers (correct, related, wrong, unsure) and POPE “no” questions (present, absent, unsure). Compact Codex score summaries are stored under `runs/ablate-llms/scores/`; raw inputs, images and per-item outputs are generated locally and are not checked into this repository. They do not overwrite the published Claude Opus 5.5 verdicts in `judgments/`.
 
 ## Committee
 
-The committee is the 9 models in the results table, and the Opus verdicts for them remain frozen. The objects Opus confirmed in their captions form the coverage pool for Mod-CHAIR and the completed labels for Visual Genome THRONE. Alternate-judge scores are kept separately, so the published Opus numbers stay fixed.
+The committee is the 9 models in the results table, and the Claude Opus 5.5 verdicts for them remain frozen. The objects Claude Opus 5.5 confirmed in their captions form the coverage pool for Mod-CHAIR and the completed labels for Visual Genome THRONE. Alternate-judge scores are kept separately, so the published Claude Opus 5.5 numbers stay fixed.
 
 ## Use the published verdicts
 
@@ -15,13 +15,13 @@ The verdicts, the committee and the final table are in `judgments/` in the repo,
 
 ## Use your own judge
 
-A judge backend returns the same verdict labels through the shared interface. The Claude and Codex CLI adapters share the batching, image preparation, schema validation and result persistence code. The task rubrics are in `judge/.claude/skills/`; the manifest hashes identify the published Opus inputs and verdicts.
+A judge backend returns the same verdict labels through the shared interface. The Claude and Codex CLI adapters share the batching, image preparation, schema validation and result persistence code. The task rubrics are in `judge/.claude/skills/`; the manifest hashes identify the published Claude Opus 5.5 inputs and verdicts.
 
 ## Agreement with human labels
 
 We scored both judges against the same completed human labels. Exact agreement is the share of items where the categorical verdict matched. Precision and recall use the task’s positive class: an unsupported caption mention (`absent`), a wrong ROPE answer (`wrong`), or a POPE “no” question with an object visibly present (`present`).
 
-| Dimension | Human-labelled items | Opus exact agreement | GPT-6.1 Sol exact agreement | Opus precision / recall | GPT-6.1 Sol precision / recall |
+| Dimension | Human-labelled items | Claude Opus 5.5 exact agreement | GPT-6.1 Sol exact agreement | Claude Opus 5.5 precision / recall | GPT-6.1 Sol precision / recall |
 |---|---:|---:|---:|---:|---:|
 | Caption mentions | 100 of 175 | 67.0% | 60.0% | 73.0% / 62.8% | 66.7% / 65.1% |
 | ROPE answers | 94 | 78.7% | 81.9% | 82.5% / 87.0% | 86.2% / 92.6% |
@@ -29,7 +29,7 @@ We scored both judges against the same completed human labels. Exact agreement i
 
 The caption results cover only the 100 completed mention labels; 75 rows remain blank. The completed caption subset contains 87 COCO items and 13 Visual Genome items, so it should not be read as a balanced cross-dataset estimate. Exact caption agreement by model is shown below; each model has only 8–16 labeled items.
 
-| Model | Items | Opus exact agreement | GPT-6.1 Sol exact agreement |
+| Model | Items | Claude Opus 5.5 exact agreement | GPT-6.1 Sol exact agreement |
 |---|---:|---:|---:|
 | Aya Vision 8B | 16 | 62.5% | 56.3% |
 | Gemma 4 12B | 8 | 87.5% | 87.5% |
@@ -43,9 +43,9 @@ The caption results cover only the 100 completed mention labels; 75 rows remain 
 
 Only two POPE items were labeled present. Each judge marked 16 other items as `junk`; because the human sheet asked only about visual presence, those junk verdicts are excluded from the POPE comparison. The high exact agreement mostly reflects the 82 remaining human-labeled absent items, while the positive-class precision and recall are based on just two present items and are highly uncertain.
 
-These are results from the new paired sample, not the earlier historical human-review sample. The earlier Opus review reported:
+These are results from the new paired sample, not the earlier historical human-review sample. The earlier Claude Opus 5.5 review reported:
 
-| Dimension | Historical human-labelled items | Positives | Opus recall | Opus precision | Opus run agreement |
+| Dimension | Historical human-labelled items | Positives | Claude Opus 5.5 recall | Claude Opus 5.5 precision | Claude Opus 5.5 run agreement |
 |---|---:|---:|---:|---:|---:|
 | Caption mentions | 175 | 23 | 87% (20/23) | 77% (20/26) | 97.2% |
 | ROPE answers | 94 | 47 | 83% (39/47) | 98% (39/40) | 90.1% |
@@ -53,7 +53,7 @@ These are results from the new paired sample, not the earlier historical human-r
 
 The caption and POPE rubrics were revised after the earlier human review, so do not combine the historical and new samples. The table above reports aggregate agreement; item-level human labels are not included in the repository.
 
-## Agreement between Opus and GPT-6.1 Sol
+## Agreement between Claude Opus 5.5 and GPT-6.1 Sol
 
 Spearman correlation compares each judge’s ranking of the same nine models on each dataset and metric. Values near 1 mean the model order is similar; they do not measure agreement with humans.
 
@@ -68,6 +68,6 @@ Spearman correlation compares each judge’s ranking of the same nine models on 
 | Visual Genome | CHAIR | 1.000 |
 | Visual Genome | THRONE | 1.000 |
 
-Across the 72 dataset–metric–model rank entries, 13 ranks differ. The largest shifts are on COCO CHAIR: PaliGemma moves from 9th under Opus to 6th under GPT-6.1 Sol, while Ministral-3-14B moves from 7th to 9th. POPE and THRONE rankings match across judges on both datasets.
+Across the 72 dataset–metric–model rank entries, 13 ranks differ. The largest shifts are on COCO CHAIR: PaliGemma moves from 9th under Claude Opus 5.5 to 6th under GPT-6.1 Sol, while Ministral-3-14B moves from 7th to 9th. POPE and THRONE rankings match across judges on both datasets.
 
 ![The review page used to label judge items](/images/judge-review.jpg)
