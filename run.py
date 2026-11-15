@@ -6,8 +6,8 @@
 Datasets default to datasets/{coco,visual_genome} in the repository; model paths come
 from the MIRAGE_*_MODEL_PATH variables. Results carry "judged", the judged scores from the
 frozen verdicts in judgments/ ("head" is the published headline), or "missing_verdicts" when
-some items have none; --live-judge grades a new model's missing caption mentions with Claude
-(ROPE answers have no live judge). "config" records what produced the file.
+some items have none; --live-judge grades missing caption mentions with the selected backend
+(Claude by default; ROPE answers have no live judge). "config" records what produced the file.
 """
 
 import argparse
@@ -48,7 +48,11 @@ def _parse_args(argv=None):
     p.add_argument("--judgments", type=Path, default=None,
                    help="judge verdicts directory (default: $MIRAGE_JUDGMENTS_DIR, else judgments/)")
     p.add_argument("--live-judge", action="store_true",
-                   help="grade caption mentions with no stored verdict with Claude ($MIRAGE_CLAUDE_BIN, else claude)")
+                   help="grade missing caption mentions with the selected judge backend")
+    p.add_argument("--judge-backend", choices=("claude", "codex"), default="claude",
+                   help="backend for --live-judge (default: claude)")
+    p.add_argument("--judge-model", default=None,
+                   help="judge model override for --live-judge (otherwise backend default)")
     p.add_argument("--verbose", action="store_true")
     return p.parse_args(argv)
 
@@ -87,7 +91,8 @@ def _run_dataset_metric(args, model=None, judge=None, evaluator=None):
     # The judged scores' inputs are checked first, so a missing one fails before any generation.
     _check_judged_inputs(args)
     if judge is None and not (args.metric == "throne" and args.dataset == "coco"):  # COCO THRONE reads no verdicts
-        judge = Judge.load(args.judgments, live=args.live_judge)
+        judge = Judge.load(args.judgments, live=args.live_judge, backend=args.judge_backend,
+                           model=args.judge_model)
     # --cache-only opens the prediction cache read-only: a replay never writes to it, and a miss raises.
     if model is None:
         model = build_predictor(args.model, cache_only=args.cache_only)
