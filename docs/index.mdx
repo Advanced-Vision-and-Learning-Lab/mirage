@@ -3,11 +3,13 @@ title: "Mirage"
 description: "A vision language model eval framework with modified hallucination metrics."
 ---
 
+import { RankComparison } from "/snippets/rank-comparison.jsx";
+
 Mirage is an evaluation framework for vision language models. It measures object hallucination with four metrics from the literature: POPE, ROPE, CHAIR and THRONE. Each metric is modified so it still works on datasets with sparse labels, such as Visual Genome.
 
 ## Results
 
-Nine models, scored on the same first 500 images of COCO val2017 and Visual Genome. Tables show headline modified scores as percentages; ranks are in parentheses, with 1 best. Bold marks the highest score in each column. Select the GPT-6.1 Sol tab to compare Visual Genome POPE rankings under the two judges and the original POPE Accuracy ranking.
+Nine models, scored on the same first 500 images of COCO val2017 and Visual Genome. Tables show headline modified scores as percentages; ranks are in parentheses, with 1 best. Bold marks the highest score in each column. Select the GPT-6.1 Sol tab to compare rank changes across all four metrics.
 
 <Tabs>
 <Tab title="Claude Opus">
@@ -71,23 +73,11 @@ Nine models, scored on the same first 500 images of COCO val2017 and Visual Geno
 | Qwen2-VL-2B | 91.4 (#6) | 36.4 (#5) | 47.8 (#8) | 68.5 (#6) |
 | PaliGemma-3B | 91.6 (#5) | 23.0 (#8) | 49.5 (#7) | 63.1 (#9) |
 
-### Three-way Visual Genome POPE rank comparison
+### Rank changes by metric
 
-Each column lists models from rank 1 (best) to rank 9. POPE Accuracy is the original metric; the other columns use Mod-POPE labels from Claude Opus and GPT-6.1 Sol.
+Rank 1 is best. Each panel shows Visual Genome rankings and connects the original metric to Claude Opus and GPT-6.1 Sol; blue lines mark models that move two or more places.
 
-| Rank | POPE Accuracy | Mod-POPE (Claude Opus) | Mod-POPE (GPT-6.1 Sol) |
-|---:|---|---|---|
-| 1 | Gemma-4-12B | Gemma-4-12B | Gemma-4-12B |
-| 2 | Qwen2-VL-7B | Gemma-4-E4B | Gemma-4-E4B |
-| 3 | Gemma-4-E4B | Qwen2-VL-7B | Qwen2-VL-7B |
-| 4 | Qwen2-VL-2B | Qwen2-VL-2B | Aya-Vision-8B |
-| 5 | Muse-Glimmer-30B | PaliGemma-3B | PaliGemma-3B |
-| 6 | PaliGemma-3B | Aya-Vision-8B | Qwen2-VL-2B |
-| 7 | Aya-Vision-8B | Muse-Glimmer-30B | Ministral-3-8B |
-| 8 | Ministral-3-8B | Ministral-3-8B | Ministral-3-14B |
-| 9 | Ministral-3-14B | Ministral-3-14B | Muse-Glimmer-30B |
-
-**Notable shifts:** Aya-Vision-8B moves from 7th on POPE Accuracy to 6th under Opus and 4th under Sol. Muse-Glimmer-30B moves from 5th to 7th under Opus and 9th under Sol. Comparing the judges directly, Qwen2-VL-2B shifts from 4th to 6th, while Ministral-3-14B moves from 9th to 8th.
+<RankComparison />
 
 </Tab>
 </Tabs>
