@@ -9,10 +9,10 @@ Mirage is an evaluation framework for vision language models. It measures object
 
 ## Results
 
-Nine models, scored on the same first 500 images of COCO val2017 and Visual Genome. Tables show headline modified scores as percentages; ranks are in parentheses, with 1 best. Bold marks the highest score in each column. Select the GPT-6.1 Sol tab to compare rank changes across all four metrics.
+Nine models, scored on the same first 500 images of COCO val2017 and Visual Genome. Tables show headline modified scores as percentages; ranks are in parentheses, with 1 best. Bold marks the highest score in each column. The three-way Visual Genome rank comparison below shows both judges alongside the original metrics.
 
 <Tabs>
-<Tab title="Claude Opus">
+<Tab title="Claude Opus 5.5">
 
 ### COCO
 
@@ -73,16 +73,16 @@ Nine models, scored on the same first 500 images of COCO val2017 and Visual Geno
 | Qwen2-VL-2B | 91.4 (#6) | 36.4 (#5) | 47.8 (#8) | 68.5 (#6) |
 | PaliGemma-3B | 91.6 (#5) | 23.0 (#8) | 49.5 (#7) | 63.1 (#9) |
 
-### Rank changes by metric
-
-Rank 1 is best. Each panel shows Visual Genome rankings and connects the original metric to Claude Opus and GPT-6.1 Sol; blue lines mark models that move two or more places.
-
-<RankComparison />
-
 </Tab>
 </Tabs>
 
-The judge tabs use the same model outputs, image samples, candidate labels and scoring code. Claude Opus remains the published baseline; GPT-6.1 Sol is the alternate judge. Their rank agreement and notable shifts are summarized on [Judge](/judge). Human-label agreement is reported separately and is not inferred from judge-to-judge ranking agreement.
+### Rank changes by metric
+
+Rank 1 is best. Each chart shows three independent Visual Genome ranking columns: the original metric, the modified metric judged by Claude Opus 5.5, and the modified metric judged by GPT-6.1 Sol. Links connect each model between adjacent columns; blue links mark shifts of two or more places.
+
+<RankComparison />
+
+The judge tabs use the same model outputs, image samples, candidate labels and scoring code. Claude Opus 5.5 remains the published baseline; GPT-6.1 Sol is the alternate judge. Their rank agreement and notable shifts are summarized on [Judge](/judge). Human-label agreement is reported separately and is not inferred from judge-to-judge ranking agreement.
 
 Notes:
 - Qwen2-VL-2B answers COCO ROPE boxes with coordinates, so its COCO Mod-ROPE is low.

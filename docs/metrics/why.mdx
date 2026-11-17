@@ -3,6 +3,8 @@ title: "Why the metrics are modified"
 description: "The failures found and the data behind each change."
 ---
 
+import { RankComparison } from "/snippets/rank-comparison.jsx";
+
 The original metrics assume every object in an image is labelled. Visual Genome labels only some objects and uses free text names, so the raw scores measured label gaps more than hallucination. Each fix below needed someone to look at the image, which is why Mirage uses a [judge](/judge).
 
 All numbers cover the 9 models on the first 500 Visual Genome images. Rank is in brackets.
@@ -11,18 +13,9 @@ All numbers cover the 9 models on the first 500 Visual Genome images. Rank is in
 
 Visual Genome "no" questions pick their object from 82,827 free text names. Of the 1,500 "no" questions, 301 were junk names like "stillness" and "flloor", 101 named objects that were in the image, and 15 could not be checked from the image.
 
-<Tabs>
-<Tab title="Claude Opus">
-
-![Rank change from POPE accuracy to Mod-POPE, judged by Claude Opus](/images/rank-pope.svg)
-
-</Tab>
-<Tab title="GPT-6.1 Sol">
+<RankComparison metric="POPE" />
 
 **Notable rank shifts:** In the GPT-6.1 Sol view, Aya-Vision-8B rises from 7th on POPE accuracy to 4th on Mod-POPE; Muse-Glimmer-30B moves from 5th to 7th, and Qwen2-VL-2B from 4th to 6th.
-
-</Tab>
-</Tabs>
 
 | Model | POPE accuracy, all questions | Mod-POPE balanced accuracy |
 |---|---:|---:|
@@ -42,18 +35,9 @@ Only 214 of 2,500 Visual Genome boxes hold a single object, so a box labelled "r
 
 ![Gemma-4-12B ROPE accuracy after each fix](/images/rope-steps.svg)
 
-<Tabs>
-<Tab title="Claude Opus">
-
-![Rank change from strict ROPE to Mod-ROPE, judged by Claude Opus](/images/rank-rope.svg)
-
-</Tab>
-<Tab title="GPT-6.1 Sol">
+<RankComparison metric="ROPE" />
 
 **Notable rank shifts:** With GPT-6.1 Sol, Muse-Glimmer-30B rises from 7th on strict ROPE to 1st on Mod-ROPE. PaliGemma moves from 6th to 8th.
-
-</Tab>
-</Tabs>
 
 | Model | Strict ROPE | Mod-ROPE |
 |---|---:|---:|
@@ -71,18 +55,9 @@ Only 214 of 2,500 Visual Genome boxes hold a single object, so a box labelled "r
 
 PaliGemma ranked first on raw CHAIR-I because 115 of its 500 captions were under 5 words, such as "kitchen". Sparse labels also counted visible objects like "sky" as hallucinations: in a 50 image check, Gemma-4-12B had 401 flagged words with no matching label, and 228 were visible objects, 165 were not objects at all, and 8 were truly absent.
 
-<Tabs>
-<Tab title="Claude Opus">
-
-![Rank change from raw CHAIR-I to Mod-CHAIR F0.5, judged by Claude Opus](/images/rank-chair.svg)
-
-</Tab>
-<Tab title="GPT-6.1 Sol">
+<RankComparison metric="CHAIR" />
 
 **Notable rank shifts:** GPT-6.1 Sol moves Muse-Glimmer-30B from 5th to 1st and Aya-Vision-8B from 7th to 2nd. PaliGemma falls from 1st to 7th; Qwen2-VL-7B falls from 2nd to 9th.
-
-</Tab>
-</Tabs>
 
 | Model | Raw CHAIR-I (lower is better) | Mod-CHAIR-I | Coverage | Mod-CHAIR F0.5 |
 |---|---:|---:|---:|---:|
@@ -100,18 +75,9 @@ PaliGemma ranked first on raw CHAIR-I because 115 of its 500 captions were under
 
 The evaluator credited about 30 categories per image to PaliGemma's one to three word captions, and the caption "yes" got 196 objects. The paper-style column already uses class-wise F0.5. Mirage adds the 5 word minimum and the judge-completed labels.
 
-<Tabs>
-<Tab title="Claude Opus">
-
-![Rank change from paper-style THRONE to Mirage, judged by Claude Opus](/images/rank-throne.svg)
-
-</Tab>
-<Tab title="GPT-6.1 Sol">
+<RankComparison metric="THRONE" />
 
 **Notable rank shifts:** THRONE rankings are comparatively stable under GPT-6.1 Sol; the largest movement is Qwen2-VL-2B, from 4th to 6th.
-
-</Tab>
-</Tabs>
 
 | Model | Paper-style | Mirage |
 |---|---:|---:|

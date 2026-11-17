@@ -1,8 +1,8 @@
-export const RankComparison = () => {
+export const RankComparison = ({ metric: onlyMetric } = {}) => {
   const metrics = [
     {
       title: "POPE",
-      columns: [["POPE Accuracy"], ["Claude Opus", "Mod-POPE"], ["GPT-6.1 Sol", "Mod-POPE"]],
+      columns: [["POPE Accuracy"], ["Claude Opus 5.5", "Mod-POPE"], ["GPT-6.1 Sol", "Mod-POPE"]],
       rows: [
         ["Gemma-4-12B", 1, 1, 1],
         ["Qwen2-VL-7B", 2, 3, 3],
@@ -17,7 +17,7 @@ export const RankComparison = () => {
     },
     {
       title: "ROPE",
-      columns: [["Strict ROPE"], ["Claude Opus", "Mod-ROPE"], ["GPT-6.1 Sol", "Mod-ROPE"]],
+      columns: [["Strict ROPE"], ["Claude Opus 5.5", "Mod-ROPE"], ["GPT-6.1 Sol", "Mod-ROPE"]],
       rows: [
         ["Gemma-4-12B", 1, 1, 2],
         ["Qwen2-VL-7B", 2, 3, 3],
@@ -32,7 +32,7 @@ export const RankComparison = () => {
     },
     {
       title: "CHAIR",
-      columns: [["Raw CHAIR-I", "lower is better"], ["Claude Opus", "Mod-CHAIR F0.5"], ["GPT-6.1 Sol", "Mod-CHAIR F0.5"]],
+      columns: [["Raw CHAIR-I", "lower is better"], ["Claude Opus 5.5", "Mod-CHAIR F0.5"], ["GPT-6.1 Sol", "Mod-CHAIR F0.5"]],
       rows: [
         ["Gemma-4-12B", 4, 4, 4],
         ["Qwen2-VL-7B", 2, 9, 9],
@@ -47,7 +47,7 @@ export const RankComparison = () => {
     },
     {
       title: "THRONE",
-      columns: [["Paper-style THRONE"], ["Claude Opus", "THRONE F0.5"], ["GPT-6.1 Sol", "THRONE F0.5"]],
+      columns: [["Paper-style THRONE"], ["Claude Opus 5.5", "THRONE F0.5"], ["GPT-6.1 Sol", "THRONE F0.5"]],
       rows: [
         ["Gemma-4-12B", 2, 3, 3],
         ["Qwen2-VL-7B", 8, 8, 8],
@@ -83,74 +83,74 @@ export const RankComparison = () => {
       .rank-comparison__chart { display: none; }
       .rank-comparison__mobile { display: block; }
       .rank-comparison__mobile table { width: 100%; font-size: .8rem; }
-      .rank-comparison__mobile th:not(:first-child), .rank-comparison__mobile td:not(:first-child) { text-align: center; }
     }
   `;
 
+  const shownMetrics = onlyMetric ? metrics.filter(({ title }) => title === onlyMetric) : metrics;
   const rankY = (rank) => 64 + (rank - 1) * 22;
-  const xs = [112, 300, 488];
+  const xs = [290, 350, 650, 700];
 
   return (
     <>
       <style>{style}</style>
       <div className="rank-comparison">
-        <p className="rank-comparison__legend"><span className="rank-comparison__legend-mark" aria-hidden="true" />Blue lines moved two or more ranks between columns.</p>
-        {metrics.map((metric) => {
+        <p className="rank-comparison__legend"><span className="rank-comparison__legend-mark" aria-hidden="true" />Blue links moved two or more ranks between adjacent columns.</p>
+        {shownMetrics.map((metric) => {
           const slug = metric.title.toLowerCase();
           return (
             <section className="rank-comparison__metric" key={metric.title}>
               <h4>{metric.title}</h4>
               <svg
                 className="rank-comparison__chart"
-                viewBox="0 0 760 264"
+                viewBox="0 0 1000 264"
                 role="img"
                 aria-labelledby={`rank-title-${slug} rank-description-${slug}`}
               >
                 <title id={`rank-title-${slug}`}>{metric.title} model rankings</title>
-                <desc id={`rank-description-${slug}`}>Rankings by original metric, Claude Opus, and GPT-6.1 Sol. Rank 1 is best. Lines connect the same model across columns.</desc>
+                <desc id={`rank-description-${slug}`}>Three independent rank columns: original metric, Claude Opus 5.5 Mod metric, and GPT-6.1 Sol Mod metric. Rank 1 is best. Links connect the same model between adjacent columns.</desc>
                 {Array.from({ length: 9 }, (_, index) => {
                   const rank = index + 1;
                   const y = rankY(rank);
                   return (
                     <g key={`guide-${rank}`}>
-                      <line className="rank-guide" x1="68" y1={y} x2="488" y2={y} />
-                      <text className="rank-muted" x="46" y={y + 4} textAnchor="end" fontSize="13">{rank}</text>
+                      <line className="rank-guide" x1="0" y1={y} x2="1000" y2={y} />
                     </g>
                   );
                 })}
-                {xs.map((x, columnIndex) => (
-                  <g key={`column-${columnIndex}`}>
-                    <line className="rank-axis" x1={x} y1="54" x2={x} y2={rankY(9) + 8} />
-                    <text x={x} y="18" textAnchor="middle" fontSize="13" fontWeight="500">
-                      {metric.columns[columnIndex].map((line, lineIndex) => (
-                        <tspan key={line} x={x} dy={lineIndex === 0 ? 0 : 16}>
-                          {line}
-                        </tspan>
+                {[
+                  { x: 140, labelX: 12 },
+                  { x: 500, labelX: 365 },
+                  { x: 860, labelX: 715 },
+                ].map(({ x, labelX }, columnIndex) => {
+                  const sorted = metric.rows
+                    .map(([model, ...values]) => ({ model, rank: values[columnIndex] }))
+                    .sort((a, b) => a.rank - b.rank);
+                  const nodeX = columnIndex === 0 ? xs[0] : columnIndex === 1 ? xs[1] : xs[3];
+                  const rightNodeX = columnIndex === 1 ? xs[2] : null;
+                  return (
+                    <g key={`column-${columnIndex}`}>
+                      <text x={x} y="18" textAnchor="middle" fontSize="13" fontWeight="500">
+                        {metric.columns[columnIndex].map((line, lineIndex) => (
+                          <tspan key={line} x={x} dy={lineIndex === 0 ? 0 : 16}>{line}</tspan>
+                        ))}
+                      </text>
+                      {sorted.map(({ model, rank }) => (
+                        <g key={`${columnIndex}-${model}`}>
+                          <circle className="rank-dot" cx={nodeX} cy={rankY(rank)} r="3" />
+                          {rightNodeX !== null && <circle className="rank-dot" cx={rightNodeX} cy={rankY(rank)} r="3" />}
+                          <text x={labelX} y={rankY(rank) + 4} fontSize="13">{rank}. {model}</text>
+                        </g>
                       ))}
-                    </text>
-                  </g>
-                ))}
+                    </g>
+                  );
+                })}
                 {metric.rows.map(([model, original, opus, sol]) => {
-                  const ranks = [original, opus, sol];
-                  const moved = Math.max(
-                    Math.abs(original - opus),
-                    Math.abs(original - sol),
-                    Math.abs(opus - sol),
-                  ) >= 2;
-                  const points = ranks.map((rank, index) => `${xs[index]},${rankY(rank)}`).join(" ");
+                  const firstMoved = Math.abs(original - opus) >= 2;
+                  const secondMoved = Math.abs(opus - sol) >= 2;
                   return (
                     <g key={model}>
-                      <polyline className={moved ? "rank-flow rank-flow--moved" : "rank-flow"} points={points} />
-                      {ranks.map((rank, index) => (
-                        <circle
-                          key={`${model}-${index}`}
-                          className={moved ? "rank-dot rank-dot--moved" : "rank-dot"}
-                          cx={xs[index]}
-                          cy={rankY(rank)}
-                          r={moved ? 3.5 : 3}
-                        />
-                      ))}
-                      <text x="508" y={rankY(sol) + 4} fontSize="13">{model}</text>
+                      <line className={firstMoved ? "rank-flow rank-flow--moved" : "rank-flow"} x1={xs[0]} y1={rankY(original)} x2={xs[1]} y2={rankY(opus)} />
+                      <line className={secondMoved ? "rank-flow rank-flow--moved" : "rank-flow"} x1={xs[2]} y1={rankY(opus)} x2={xs[3]} y2={rankY(sol)} />
                     </g>
                   );
                 })}
@@ -158,11 +158,17 @@ export const RankComparison = () => {
               <div className="rank-comparison__mobile">
                 <table>
                   <thead>
-                    <tr><th>Model</th><th>Original</th><th>Opus</th><th>Sol</th></tr>
+                    <tr><th>Rank</th><th>{metric.columns[0].join(" ")}</th><th>{metric.columns[1].join(" ")}</th><th>{metric.columns[2].join(" ")}</th></tr>
                   </thead>
                   <tbody>
-                    {metric.rows.map(([model, original, opus, sol]) => (
-                      <tr key={model}><td>{model}</td><td>{original}</td><td>{opus}</td><td>{sol}</td></tr>
+                    {Array.from({ length: 9 }, (_, index) => index + 1).map((rank) => (
+                      <tr key={rank}>
+                        <td>{rank}</td>
+                        {[0, 1, 2].map((columnIndex) => {
+                          const [model] = metric.rows.find((row) => row[columnIndex + 1] === rank);
+                          return <td key={columnIndex}>{model}</td>;
+                        })}
+                      </tr>
                     ))}
                   </tbody>
                 </table>
